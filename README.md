@@ -1,4 +1,4 @@
-# BlueBox AI Android
+# Bluox AI Android
 
 > Your pocket AI assistant, enjoy AI conversations on the go.
 
