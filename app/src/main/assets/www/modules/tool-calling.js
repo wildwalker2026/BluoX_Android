@@ -2848,12 +2848,32 @@ async function executeToolCall(tc) {
                     }
                 };
 
+                // 每 200ms 检查 abort，如果用户点击了停止生成则通知 Java 层取消 Termux 命令
+                let termuxAborted = false;
+                const abortChecker = setInterval(() => {
+                    if (!abortController || abortController.signal.aborted) {
+                        if (termuxAborted) return;
+                        termuxAborted = true;
+                        clearInterval(abortChecker);
+                        // 通知 Java 层取消正在执行的 Termux 命令
+                        try {
+                            window.AndroidBridge.cancelTermuxCommand(callbackId);
+                        } catch (e) {
+                            console.log('取消 Termux 命令失败:', e);
+                        }
+                    }
+                }, 200);
+
                 const result = await new Promise((resolve) => {
                     window._termuxCallbacks[callbackId] = resolve;
                 });
 
+                clearInterval(abortChecker);
                 // 清理进度回调
                 delete window._termuxProgressCallbacks[callbackId];
+                if (termuxAborted) {
+                    return '⏹️ 用户已停止生成，Termux 命令已取消。';
+                }
                 return formatTermuxResult(result);
             };
 

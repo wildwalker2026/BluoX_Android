@@ -3165,6 +3165,22 @@ public class MainActivity extends Activity {
             }
 
             /**
+             * 取消正在执行的 Termux 异步命令
+             * @param callbackId 要取消的命令的 callbackId，传 null 或空字符串则取消所有
+             */
+            @JavascriptInterface
+            public void cancelTermuxCommand(String callbackId) {
+                if (termuxBridge == null) {
+                    return;
+                }
+                if (callbackId == null || callbackId.isEmpty()) {
+                    termuxBridge.cancelAllAsyncCommands();
+                } else {
+                    termuxBridge.cancelAsyncCommand(callbackId);
+                }
+            }
+
+            /**
              * 打开 Termux 应用详情页（手动授权用）
              */
             @JavascriptInterface

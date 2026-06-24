@@ -65,6 +65,8 @@ public class TermuxBridge {
 
     // ─── 回调管理 ───
     private static final Map<String, ResultCallback> callbacks = new ConcurrentHashMap<>();
+    // 已取消的异步命令 callbackId 集合
+    private static final ConcurrentHashMap<String, Boolean> cancelledCallbacks = new ConcurrentHashMap<>();
 
     private final Context context;
     private final AtomicInteger requestCodeCounter = new AtomicInteger(1000);
@@ -317,6 +319,9 @@ public class TermuxBridge {
 
         final boolean[] callbackCalled = {false};
 
+        // 确保此 callbackId 不在已取消列表中
+        cancelledCallbacks.remove(callbackId);
+
         // 超时保护
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             if (!callbackCalled[0]) {
@@ -335,12 +340,33 @@ public class TermuxBridge {
                         if (!callbackCalled[0]) {
                             callbackProgressJs(webView, activity, callbackId, partialOutput);
                         }
-                    });
+                    }, callbackId);
             if (!callbackCalled[0]) {
                 callbackCalled[0] = true;
                 callbackJs(webView, activity, callbackId, result);
             }
         }, "TermuxAsync-" + callbackId).start();
+    }
+
+    /**
+     * 取消正在执行的异步命令（由 JS 层调用）
+     * @param callbackId 要取消的命令的 callbackId
+     */
+    public void cancelAsyncCommand(String callbackId) {
+        if (callbackId != null) {
+            cancelledCallbacks.put(callbackId, true);
+            Log.i(TAG, "取消 Termux 异步命令: " + callbackId);
+        }
+    }
+
+    /**
+     * 取消所有正在执行的异步命令
+     */
+    public void cancelAllAsyncCommands() {
+        Log.i(TAG, "取消所有 Termux 异步命令, 共 " + callbacks.size() + " 个");
+        for (String id : callbacks.keySet()) {
+            cancelledCallbacks.put(id, true);
+        }
     }
 
     /**
@@ -402,6 +428,21 @@ public class TermuxBridge {
      */
     private String executeViaFile(String command, String workDir, int timeoutSec,
                                   ProgressCallback progressCallback) {
+        return executeViaFile(command, workDir, timeoutSec, progressCallback, null);
+    }
+
+    /**
+     * 核心执行方法 —— am startservice + 文件轮询（带进度回调 + 取消支持）
+     *
+     * @param command          shell 命令
+     * @param workDir          工作目录（null 用 Termux Home）
+     * @param timeoutSec       超时秒数
+     * @param progressCallback 进度回调（null 表示不需要进度）
+     * @param callbackId       异步回调ID（用于取消检测，null 表示同步调用）
+     * @return JSON 结果字符串
+     */
+    private String executeViaFile(String command, String workDir, int timeoutSec,
+                                  ProgressCallback progressCallback, String callbackId) {
         long ts = System.currentTimeMillis();
         String outputFile = "/sdcard/.termux_out_" + ts + ".txt";
         String scriptFile = "/sdcard/.termux_cmd_" + ts + ".sh";
@@ -459,6 +500,15 @@ public class TermuxBridge {
         boolean done = false;
 
         while (System.currentTimeMillis() < deadline) {
+            // 检查是否被用户取消
+            if (callbackId != null && cancelledCallbacks.containsKey(callbackId)) {
+                cancelledCallbacks.remove(callbackId);
+                new File(scriptFile).delete();
+                outFile.delete();
+                Log.i(TAG, "命令被用户取消: " + callbackId);
+                return "{\"cancelled\":true}";
+            }
+
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
