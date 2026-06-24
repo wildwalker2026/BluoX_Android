@@ -1,0 +1,1887 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0f0f0f">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src *; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src * data:; media-src 'self' data: blob:; connect-src * https://cdn.jsdelivr.net https://huggingface.co; worker-src 'self' blob:;">
+    <title>小蓝AI盒子</title>
+    <!-- Orbitron 字体已本地加载，不依赖网络 -->
+    <link rel="stylesheet" href="style.css">
+    <script src="notification-data.js"></script>
+    <!-- PDF.js / Mammoth / Transformers.js 已改为懒加载，见 app.js loadScript() -->
+</head>
+
+<body class="splash-loading">
+    <!-- 开屏 Logo 界面 -->
+    <div class="splash-screen" id="splashScreen">
+        <div class="splash-logo">
+            <svg class="splash-icon" viewBox="0 0 512 512" width="120" height="120">
+                <defs>
+                    <linearGradient id="splashGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#42A5F5" />
+                        <stop offset="50%" style="stop-color:#2196F3" />
+                        <stop offset="100%" style="stop-color:#1565C0" />
+                    </linearGradient>
+                </defs>
+                <rect width="512" height="512" fill="white" />
+                <rect x="95" y="138" width="332" height="200" rx="30" fill="rgba(0,0,0,0.2)" />
+                <polygon points="155,338 205,338 135,408" fill="rgba(0,0,0,0.2)" />
+                <rect x="90" y="130" width="332" height="200" rx="30" fill="black" />
+                <polygon points="150,330 200,330 130,400" fill="black" />
+                <circle cx="200" cy="230" r="22" fill="white" />
+                <circle cx="312" cy="230" r="22" fill="white" />
+            </svg>
+            <div class="splash-title">Bluox</div>
+        </div>
+    </div>
+
+    <!-- 权限说明弹窗 -->
+    <div class="permission-explanation-overlay" id="permissionExplanationOverlay" style="display: none;">
+        <div class="permission-explanation-container">
+            <div class="permission-explanation-title">权限说明</div>
+            <div class="permission-explanation-content" id="permissionExplanationContent"></div>
+            <div class="permission-explanation-buttons">
+                <button class="permission-explanation-btn permission-explanation-continue" id="permissionExplanationContinue">继续</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 顶部标题栏 - 放在容器外部，adjustPan 时保持固定 -->
+    <header class="header">
+        <div class="header-left">
+            <!-- 选择智能体按钮 -->
+            <button class="agent-select-btn" id="agentSelectBtn" title="切换智能体">
+                <span class="agent-icon" id="currentAgentIcon">🤖</span>
+                <span class="agent-name" id="currentAgentName">智能助手</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+        </div>
+        <div class="header-center">
+            <!-- 首次使用：点击进入笔记本提示 -->
+            <div class="notebook-hint" id="notebookHint" style="display:none;">点击进入笔记本</div>
+            <span class="rendering-count" id="renderingCount" style="display:none">正在加载: 0</span>
+            <button class="edit-agent-btn" id="notebookOpenBtn" title="笔记">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="header-right">
+            <!-- 话题选择按钮（打开右侧抽屉） -->
+            <button class="topic-drawer-btn" id="topicDrawerBtn" title="选择话题">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- 聊天记录区域 -->
+        <div class="chat-container" id="chatContainer">
+            <div class="welcome-message">
+                <p>你可以向我提问任何问题，我会尽力帮助你。</p>
+            </div>
+        </div>
+
+        <!-- 输入区域（安卓原生输入框，Web 端隐藏显示） -->
+        <div class="input-area" id="webInputArea">
+            <!-- 智能体标签栏（话题为空时显示） -->
+            <div class="agent-tags-bar" id="agentTagsBar" style="display: none;">
+                <div class="agent-tags-scroll" id="agentTagsScroll">
+                    <!-- 动态填充智能体标签 -->
+                </div>
+            </div>
+            <div class="input-textarea-row">
+                <button class="stop-btn" id="stopBtn" style="display: none;" title="停止生成">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="6" width="12" height="12" rx="2" />
+                    </svg>
+                </button>
+                <div class="textarea-container">
+                    <textarea id="messageInput" class="message-textarea" placeholder="输入消息..." rows="1"
+                        maxlength="10000" autocomplete="off" autocorrect="off" autocapitalize="off"
+                        spellcheck="false" inputmode="text"></textarea>
+                </div>
+            </div>
+            <div class="input-actions-row">
+                <div class="toggle-buttons-row">
+                    <!-- 深度思考开关 -->
+                    <div class="thinking-budget-wrapper" style="position: relative;">
+                        <button class="deep-thinking-toggle-btn" id="deepThinkingToggleBtn" title="深度思考">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M9 18h6" />
+                                <path d="M10 22h4" />
+                                <path
+                                    d="M12 2a7 7 0 0 0-7 7c0 2 1 3 2 4.5V16a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2.5c1-1.5 2-2.5 2-4.5a7 7 0 0 0-7-7z" />
+                            </svg>
+                            <span class="toggle-btn-text">思考</span>
+                        </button>
+                    </div>
+                    <!-- 网络搜索开关 -->
+                    <button class="web-search-toggle-btn" id="webSearchToggleBtn" title="网络搜索">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M2 12h20" />
+                            <path
+                                d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                        </svg>
+                        <span class="toggle-btn-text">搜索</span>
+                    </button>
+                </div>
+                <div class="actions-right">
+                    <!-- 更多操作菜单 -->
+                    <div class="chat-menu-container" id="chatMenuContainer">
+                        <button class="chat-menu-btn" id="chatMenuBtn" title="更多操作">
+                            <svg class="menu-icon-dots" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="5" r="2" />
+                                <circle cx="12" cy="12" r="2" />
+                                <circle cx="12" cy="19" r="2" />
+                            </svg>
+                            <svg class="menu-icon-bulb" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 18h6" />
+                                <path d="M10 22h4" />
+                                <path d="M12 2a7 7 0 0 0-7 7c0 2 1 3 2 4.5V16a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2.5c1-1.5 2-2.5 2-4.5a7 7 0 0 0-7-7z" />
+                            </svg>
+                            <svg class="menu-icon-globe" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M2 12h20" />
+                                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                            </svg>
+                            <svg class="menu-icon-sparkle" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="12,2 15,10 22,12 15,14 12,22 9,14 2,12 9,10" />
+                            </svg>
+                        </button>
+                        <input type="file" id="imageUploadInput" accept="image/*"
+                            style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;">
+                        <input type="file" id="fileUploadInput"
+                            accept=".txt,.md,.pdf,.docx,.doc,.json,.csv,.xml,.html,.css,.js,.py,.java,.c,.cpp,.h,.hpp,.go,.rs,.ts,.tsx,.jsx,.vue,.sql,.sh,.bat,.yaml,.yml,.ini,.conf,.log"
+                            style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;">
+                        <input type="file" id="importChatInput" accept=".json"
+                            style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;">
+                    </div>
+                    <button class="send-btn" id="sendBtn">
+                        <svg class="send-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <!-- 图片预览区 -->
+            <div class="image-preview-area" id="imagePreviewArea" style="display: none;">
+                <!-- 动态添加图片预览 -->
+            </div>
+            <!-- 文件预览区 -->
+            <div class="file-preview-area" id="filePreviewArea" style="display: none;">
+                <!-- 动态添加文件预览 -->
+            </div>
+            <!-- 底部信息栏：模型名称和tokens信息 -->
+            <div class="bottom-info-bar" id="bottomInfoBar">
+                <div class="current-model-bar" id="currentModelBar">
+                    <span class="current-model-name" id="currentModelName">qwen-plus</span>
+                    <span class="ai-disclaimer">AI 生成内容仅供参考</span>
+                </div>
+                <div class="usage-info" id="usageInfo">
+                    输入tokens：<span id="usageInputTokens">0</span>、缓存命中率：<span
+                        id="usageCacheRate">0%</span>、输出tokens：<span id="usageOutputTokens">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 滚动到底部按钮 -->
+        <button class="scroll-to-bottom-btn" id="scrollToBottomBtn" title="滚动到底部">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+        </button>
+
+        <!-- 搜索按钮 -->
+        <button class="scroll-search-btn" id="searchInChatBtn" title="搜索聊天记录">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+        </button>
+
+        <!-- 滚动至顶按钮 -->
+        <button class="scroll-to-top-btn" id="scrollToTopBtn" title="跳转到顶部">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
+        </button>
+    </div>
+
+        <!-- 设置弹窗 -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>设置</h2>
+                <button class="modal-close" id="closeSettings">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-category-list" style="display:flex;flex-direction:column;gap:10px;">
+                    <!-- AI 对话 -->
+                    <button class="setting-toggle-row" data-sub-modal="aiProviderSettingsModal" style="padding:12px 14px;border:1px solid var(--border-color);background:none;width:100%;cursor:pointer;border-radius:8px;text-align:left;">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">AI 服务商</span>
+
+                        </div>
+                        <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                    <button class="setting-toggle-row" data-sub-modal="chatSettingsModal" style="padding:12px 14px;border:1px solid var(--border-color);background:none;width:100%;cursor:pointer;border-radius:8px;text-align:left;">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">聊天设置</span>
+
+                        </div>
+                        <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                    <button class="setting-toggle-row" data-sub-modal="topicNameSettingsModal" style="padding:12px 14px;border:1px solid var(--border-color);background:none;width:100%;cursor:pointer;border-radius:8px;text-align:left;">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">话题名称</span>
+
+                        </div>
+                        <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                    <button class="setting-toggle-row" data-sub-modal="knowledgeBaseSettingsModal" style="padding:12px 14px;border:1px solid var(--border-color);background:none;width:100%;cursor:pointer;border-radius:8px;text-align:left;">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">知识库</span>
+
+                        </div>
+                        <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                    <button class="setting-toggle-row" data-sub-modal="mcpSettingsModal" style="padding:12px 14px;border:1px solid var(--border-color);background:none;width:100%;cursor:pointer;border-radius:8px;text-align:left;">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">MCP 服务器</span>
+
+                        </div>
+                        <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+
+                    <div style="height:1px;background:transparent;margin:4px 0;"></div>
+
+                    <!-- 个性化 -->
+                    <button class="setting-toggle-row" data-sub-modal="themeSettingsModal" style="padding:12px 14px;border:1px solid var(--border-color);background:none;width:100%;cursor:pointer;border-radius:8px;text-align:left;">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">主题与外观</span>
+
+                        </div>
+                        <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+
+                    <!-- 个性化与系统 -->
+                    <button class="setting-toggle-row" data-sub-modal="generalSettingsModal" style="padding:12px 14px;border:1px solid var(--border-color);background:none;width:100%;cursor:pointer;border-radius:8px;text-align:left;">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">通用设置</span>
+
+                        </div>
+                        <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                    <button class="setting-toggle-row" data-sub-modal="advancedSettingsModal" style="padding:12px 14px;border:1px solid var(--border-color);background:none;width:100%;cursor:pointer;border-radius:8px;text-align:left;">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">高级设置</span>
+
+                        </div>
+                        <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                    <button class="setting-toggle-row" data-sub-modal="pcConnectionSettingsModal" style="padding:12px 14px;border:1px solid var(--border-color);background:none;width:100%;cursor:pointer;border-radius:8px;text-align:left;">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">连接电脑</span>
+
+                        </div>
+                        <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+
+                    <div style="height:1px;background:transparent;margin:4px 0;"></div>
+
+                    <!-- 数据与工具 -->
+                    <button class="setting-toggle-row" data-sub-modal="backupRestoreSettingsModal" style="padding:12px 14px;border:1px solid var(--border-color);background:none;width:100%;cursor:pointer;border-radius:8px;text-align:left;">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">备份/恢复数据</span>
+
+                        </div>
+                        <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                    <button class="setting-toggle-row" data-sub-modal="expertModeSettingsModal" style="padding:12px 14px;border:1px solid var(--border-color);background:none;width:100%;cursor:pointer;border-radius:8px;text-align:left;">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">专家模式</span>
+
+                        </div>
+                        <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- AI服务商设置子弹窗 -->
+    <div class="modal-overlay sub-settings-modal" id="aiProviderSettingsModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>AI 服务商设置</h2>
+                <button class="modal-close sub-settings-back">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>AI 服务商</label>
+                    <div class="custom-select-wrapper">
+                        <div class="custom-select-container">
+                            <button type="button" class="custom-select-btn" id="aiProviderSelectBtn">
+                                <span class="custom-select-text" id="aiProviderSelectText"><img
+                                        src="icons/db3_processed/AIprovidersvg/deepseek.svg" alt="DeepSeek"
+                                        class="provider-icon">DeepSeek（深度求索）</span>
+                                <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <select id="aiProviderSelect" style="display: none;">
+                        <option value="deepseek">DeepSeek（深度求索）</option>
+                        <option value="qwen">千问 (Qwen)</option>
+                        <option value="doubao">豆包（Volcano）</option>
+                        <option value="glm">GLM（智谱清言）</option>
+                        <option value="minimax">MiniMax（极小化极大）</option>
+                        <option value="kimi">Kimi（月之暗面）</option>
+                        <option value="mimo">MiMo（小米）</option>
+                    </select>
+                    <button type="button" class="secondary-btn" id="getApiKeyBtn" style="width: 100%; padding: 10px 16px; margin-top: 8px;" title="获取 API Key">获取 KEY</button>
+                </div>
+                <div class="form-group">
+                    <label for="apiKeyInput">API Key</label>
+                    <div class="api-key-row">
+                        <div class="input-with-toggle">
+                            <input type="password" id="apiKeyInput" placeholder="请输入你的 API Key">
+                            <button type="button" class="toggle-visibility-btn" id="toggleApiKeyBtn"
+                                title="显示/隐藏 API Key">
+                                <svg class="eye-off-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" style="display: none;">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path
+                                        d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24">
+                                    </path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="button" class="secondary-btn" id="fetchModelsBtn" style="width: 100%; padding: 10px 16px; margin-top: 8px;" title="获取模型列表">获取模型</button>
+                </div>
+                <div class="form-group">
+                    <label>模型</label>
+                    <div class="custom-select-wrapper">
+                        <div class="custom-select-container">
+                            <button type="button" class="custom-select-btn" id="modelSelectBtn">
+                                <span class="custom-select-text" id="modelSelectText">qwen-plus</span>
+                                <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <select id="modelSelect" style="display: none;">
+                        <option value="qwen-plus">qwen-plus</option>
+                        <option value="qwen3.5-plus">qwen3.5-plus</option>
+                        <option value="qwen-turbo">qwen-turbo</option>
+                        <option value="qwen-max">qwen-max</option>
+                    </select>
+                    <button type="button" class="secondary-btn" id="testConnectionBtn" style="width: 100%; padding: 10px 16px; margin-top: 8px;" title="测试连接">测试连接</button>
+                </div>
+                <!-- 豆包 Session 缓存开关（仅豆包服务商时显示） -->
+                <div class="form-group" id="sessionCacheGroup" style="display: none;">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">开启 Session 缓存</span>
+                            <small class="setting-toggle-desc">自动缓存对话上下文，降低 Token 消耗，适合多轮对话</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="sessionCacheSwitch">
+                            <span></span>
+                        </label>
+                    </div>
+                    <div class="form-group session-expire-row" id="sessionExpireRow">
+                        <label for="sessionExpireInput">缓存有效期
+                            <span class="info-tooltip-trigger tooltip-right" tabindex="0">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="12" y1="16" x2="12" y2="12" />
+                                    <line x1="12" y1="8" x2="12.01" y2="8" />
+                                </svg>
+                                <span class="info-tooltip-content">缓存存储时间越长费用越高。以 2026/3/4 价格、doubao-seed-2.0-pro 为例，每百万
+                                    tokens 存储 7 天约 2.856 元，请按需设置。</span>
+                            </span>
+                        </label>
+                        <input type="number" id="sessionExpireInput" placeholder="1" min="1" max="168" value="1">
+                        <small style="color: var(--text-secondary); font-size: 12px;">小时（最长 168 小时/7 天）</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 聊天设置子弹窗 -->
+    <div class="modal-overlay sub-settings-modal" id="chatSettingsModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>聊天设置</h2>
+                <button class="modal-close sub-settings-back">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" style="opacity:0.4;pointer-events:none">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">情景对话模式</span>
+                            <small class="setting-toggle-desc">开发测试中，敬请期待</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="" disabled>
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group" id="webSearchFormGroup" style="display: none;">
+                    <div class="setting-toggle-row">
+                        <span class="setting-toggle-title">启用联网搜索</span>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="webSearchSwitch">
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <span class="setting-toggle-title">启用深度思考模式</span>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="deepThinkingSwitch">
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <span class="setting-toggle-title">流式输出（实时显示）</span>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="streamOutputSwitch" checked>
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">缓存命中优化</span>
+                            <small class="setting-toggle-desc">提高 API
+                                缓存命中率，但会牺牲部分上下文，建议适当调高上下文限制</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="cacheOptimizeSwitch">
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">恢复上次话题</span>
+                            <small class="setting-toggle-desc">开启时恢复上次退出时的话题，关闭时每次开屏显示空白新话题</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="restoreLastTopicSwitch">
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">沉浸模式默认开启</span>
+                            <small class="setting-toggle-desc">开启后所有话题自动进入沉浸模式，向上滑动可查看历史消息，停止滑动后自动隐藏</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="immersiveModeDefaultSwitch">
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">锁定竖屏</span>
+                            <small class="setting-toggle-desc">开启时锁定竖屏方向，关闭时允许横屏旋转</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="lockPortraitSwitch">
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">发送图片自动压缩（可调节阈值）</span>
+                            <small class="setting-toggle-desc" id="autoCompressImageDesc">开启后，超过1MB的图片在发送前自动压缩到0.5MB以下，节省token</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="autoCompressImageSwitch">
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">生成期间不熄屏</span>
+                            <small class="setting-toggle-desc">AI 回复期间保持屏幕常亮，回复结束后自动恢复</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="keepScreenOnSwitch">
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">确认操作提示音（可调节音量）</span>
+                            <small class="setting-toggle-desc">AI 请求确认操作时播放提示音</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="confirmSoundSwitch" checked>
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 话题名称设置子弹窗 -->
+    <div class="modal-overlay sub-settings-modal" id="topicNameSettingsModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>话题名称</h2>
+                <button class="modal-close sub-settings-back">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">自动生成话题名称</span>
+                            <small class="setting-toggle-desc">发送首条消息后自动为话题生成名称，关闭后话题保持"新话题"</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="autoGenerateTopicNameSwitch" checked>
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="topicNamePromptInput">生成话题提示词</label>
+                    <textarea id="topicNamePromptInput" rows="12" placeholder="示例：请用一句话概括以下对话的主题，不超过10个字&#10;&#10;智能体：{agentDesc}&#10;用户消息：{firstMessage}" style="width:100%;padding:10px 14px;border:1px solid var(--border-color);border-radius:8px;font-size:14px;background-color:transparent;resize:vertical;font-family:inherit;">请根据以下信息生成一个七字古诗格式的话题名称（只需要输出七个字，不要有任何其他内容）：
+
+智能体描述：{agentDesc}
+用户第一条消息：{firstMessage}
+
+要求：
+1. 必须是七个字
+2. 要有古诗词的韵味
+3. 能概括对话主题
+4. 只输出这七个字，不要有任何标点符号或其他内容</textarea>
+                    <small style="color: var(--text-secondary); font-size: 12px;">支持 {agentDesc} 和 {firstMessage} 占位符</small>
+                    <button type="button" id="resetTopicNamePromptBtn" class="secondary-btn" style="width: 100%; padding: 10px 16px; margin-top: 8px;">恢复默认</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 知识库设置子弹窗 -->
+    <div class="modal-overlay sub-settings-modal" id="knowledgeBaseSettingsModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>知识库</h2>
+                <button class="modal-close sub-settings-back">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">启用知识库检索</span>
+                            <small class="setting-toggle-desc">发送消息时自动检索相关文档内容作为参考资料</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="knowledgeBaseSwitch">
+                            <span></span>
+                        </label>
+                    </div>
+                    <button type="button" class="secondary-btn" id="manageKnowledgeBaseBtn" style="width: 100%; padding: 10px 16px; margin-top: 8px;">
+                        管理知识库文档
+                    </button>
+                </div>
+                <div class="form-group">
+                    <label for="maxKnowledgeChunksInput">向量检索片段</label>
+                    <input type="number" id="maxKnowledgeChunksInput" placeholder="默认 3" min="1" max="10" value="3">
+                    <small style="color: var(--text-secondary); font-size: 12px;">向量检索返回的文档片段数量（1-10）</small>
+                </div>
+                <div class="form-group">
+                    <label for="maxKeywordChunksInput">关键词检索片段</label>
+                    <input type="number" id="maxKeywordChunksInput" placeholder="默认 1" min="1" max="10" value="1">
+                    <small style="color: var(--text-secondary); font-size: 12px;">关键词检索返回的文档片段数量（1-10）</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通用设置子弹窗 -->
+    <div class="modal-overlay sub-settings-modal" id="generalSettingsModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>通用设置</h2>
+                <button class="modal-close sub-settings-back">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="maxTokensInput">最大生成 Token 数</label>
+                    <input type="number" id="maxTokensInput" placeholder="默认 128000" min="1" value="128000">
+                    <small style="color: var(--text-secondary); font-size: 12px;">若 AI 回复中断请调高，若出现 max_token
+                        错误请调低</small>
+                </div>
+                <div class="form-group">
+                    <label for="temperatureInput">温度</label>
+                    <input type="number" id="temperatureInput" placeholder="默认 1.14" min="0" max="2" step="0.01"
+                        value="1.14">
+                    <small style="color: var(--text-secondary); font-size: 12px;">AI 回复的创造力，0 到 2，值越高越有创造性</small>
+                </div>
+                <div class="form-group">
+                    <label for="topPInput">Top P</label>
+                    <input type="number" id="topPInput" placeholder="默认 0.5" min="0" max="1" step="0.01" value="0.5">
+                    <small style="color: var(--text-secondary); font-size: 12px;">AI 响应的多样性，0 到 1，值越低越确定</small>
+                </div>
+                <div class="form-group">
+                    <label for="contextLimitNormalInput">普通模式上下文轮数</label>
+                    <input type="number" id="contextLimitNormalInput" placeholder="默认 100" min="1" max="1000" value="100">
+                    <small style="color: var(--text-secondary); font-size: 12px;">普通模式下发送的上下文消息轮数，超过会被截断</small>
+                </div>
+                <div class="form-group">
+                    <label for="contextLimitExpertInput">专家模式上下文轮数</label>
+                    <input type="number" id="contextLimitExpertInput" placeholder="默认 30" min="1" max="1000" value="30">
+                    <small style="color: var(--text-secondary); font-size: 12px;">专家模式下发送的上下文消息轮数，超过会被截断</small>
+                </div>
+                <div class="form-group">
+                    <label for="pageSizeInput">消息分页大小</label>
+                    <input type="number" id="pageSizeInput" placeholder="默认 1000" min="20" max="5000" value="1000">
+                    <small style="color: var(--text-secondary); font-size: 12px;">话题加载时一次性渲染的消息条数（20-5000），值越大加载越慢但显示越多</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主题设置子弹窗 -->
+    <div class="modal-overlay sub-settings-modal" id="themeSettingsModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>主题与外观</h2>
+                <button class="modal-close sub-settings-back">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>背景主题</label>
+                    <div class="custom-select-wrapper">
+                        <div class="custom-select-container">
+                            <button type="button" class="custom-select-btn" id="bgThemeSelectBtn">
+                                <span class="custom-select-text" id="bgThemeSelectText">浅色</span>
+                                <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>主题颜色</label>
+                    <div class="custom-select-wrapper">
+                        <div class="custom-select-container">
+                            <button type="button" class="custom-select-btn" id="themeColorSelectBtn">
+                                <span class="custom-select-text" id="themeColorSelectText">翠竹清风</span>
+                                <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="fontSizeInput">消息字体大小</label>
+                    <input type="number" id="fontSizeInput" placeholder="默认 16" min="12" max="28" value="16">
+                    <small style="color: var(--text-secondary); font-size: 12px;">设置消息气泡中的文字大小（12-28px）</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 高级设置子弹窗 -->
+    <div class="modal-overlay sub-settings-modal" id="advancedSettingsModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>高级设置</h2>
+                <button class="modal-close sub-settings-back">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">显示 Token 用量信息</span>
+                            <small class="setting-toggle-desc">在 AI 消息操作栏显示输入/输出 Token
+                                数量和缓存命中率</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="showUsageInfoSwitch" checked>
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top: 12px;">
+                    <label
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                        <span>自定义请求体参数</span>
+                    </label>
+                    <textarea id="customRequestBodyInput" placeholder='例如：
+{
+  "stream": true,
+  "tools": [
+    {
+      "type": "web_search"
+    }
+  ]
+}' style="width: 100%; min-height: 160px; max-height: 300px; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; background-color: transparent; color: var(--text-primary); font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
+                    <small
+                        style="color: var(--text-secondary); font-size: 11px; display: block; margin-top: 4px;">输入
+                        JSON 格式的参数，将合并到请求体中。留空则不添加。</small>
+                    <small id="customBodyError"
+                        style="color: #ef4444; font-size: 11px; display: none; margin-top: 4px;">JSON
+                        格式错误</small>
+                </div>
+                <!-- 使用点数显示 -->
+                <div class="form-group" id="usagePointsGroup" style="margin-top: 12px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <div>
+                            <span style="font-size:14px;color:var(--text-primary);">广告点数</span>
+                            <small style="display:block;color:var(--text-secondary);font-size:11px;margin-top:2px;">开启专家模式后展示广告</small>
+                        </div>
+                        <span id="usagePointsValue" style="font-size:14px;font-weight:600;color:var(--primary-color);">0 / 10</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 连接电脑设置子弹窗 -->
+    <div class="modal-overlay sub-settings-modal" id="pcConnectionSettingsModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>连接小蓝AI盒子PC端</h2>
+                <button class="modal-close sub-settings-back">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- 连接方式卡片 -->
+                <div class="form-group" style="padding:12px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:12px;">
+                    <!-- Tab 切换按钮 -->
+                    <div style="display:flex;gap:0;margin-bottom:12px;border-radius:6px;overflow:hidden;border:1px solid var(--border-color);">
+                        <button type="button" id="connTabPublic" class="conn-tab-btn conn-tab-active" style="flex:1;padding:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:var(--highlight-bg, var(--primary-color));color:var(--highlight-text, #fff);transition:all 0.2s;">公网连接</button>
+                        <button type="button" id="connTabLocal" class="conn-tab-btn" style="flex:1;padding:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:var(--bg-secondary);color:var(--text-secondary);transition:all 0.2s;">局域网连接</button>
+                    </div>
+
+                    <!-- 公网连接内容 -->
+                    <div id="connPanelPublic">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                            <span style="display:inline-flex;align-items:center;">
+                                <span style="font-size:12px;color:var(--text-secondary);">通过IPv6直连，无需同一局域网</span>
+                                <span class="info-tooltip-trigger" tabindex="0">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <line x1="12" y1="16" x2="12" y2="12" />
+                                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                                    </svg>
+                                    <span class="info-tooltip-content" style="opacity:1;">手机和电脑通过IPv6直连，服务器只负责对接IPv6，不负责数据传输，因此，二者必须同时支持IPv6连接公网，否则将连接失败</span>
+                                </span>
+                            </span>
+                            <span id="cloudStatusBadge" style="font-size:12px;padding:2px 8px;border-radius:10px;background:var(--bg-secondary);color:var(--text-secondary);">未登录</span>
+                        </div>
+                        <div id="cloudLoginForm">
+                            <input type="text" id="cloudUsernameInput" placeholder="用户名 (3-16位，字母/数字/!@#_)" style="width:100%;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;margin-bottom:6px;font-size:14px;background:var(--bg-primary);color:var(--text-primary);">
+                            <input type="password" id="cloudPasswordInput" placeholder="密码 (6-16位，字母/数字/!@#_)" style="width:100%;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;margin-bottom:8px;font-size:14px;background:var(--bg-primary);color:var(--text-primary);">
+                            <div style="display:flex;gap:8px;">
+                                <button type="button" id="cloudLoginBtn" class="secondary-btn" style="flex:1;padding:8px;">登录</button>
+                                <button type="button" id="cloudRegisterBtn" class="secondary-btn" style="flex:1;padding:8px;">注册</button>
+                            </div>
+                        </div>
+                        <div id="cloudLoggedIn" style="display:none;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                                <span style="font-size:13px;color:var(--text-secondary);">已登录: <strong id="cloudUsernameDisplay" style="color:var(--text-primary);"></strong></span>
+                                <button type="button" id="cloudLogoutBtn" style="font-size:12px;color:#ef4444;background:none;border:none;cursor:pointer;">退出</button>
+                            </div>
+                            <button type="button" id="cloudConnectBtn" class="secondary-btn" style="width:100%;padding:10px;background:#4CAF50;color:#fff;border-color:#4CAF50;">🔗 公网连接电脑</button>
+                        </div>
+                    </div>
+
+                    <!-- 局域网直连内容 -->
+                    <div id="connPanelLocal" style="display:none;">
+                        <div style="margin-bottom:8px;">
+                            <label for="pcServerIP" style="font-size:13px;color:var(--text-secondary);">电脑IP地址</label>
+                        </div>
+                        <input type="text" id="pcServerIP" placeholder="如: 192.168.1.100" style="width:100%;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;margin-bottom:8px;font-size:14px;background:var(--bg-primary);color:var(--text-primary);">
+                        <button type="button" id="pcConnectBtn" class="secondary-btn" style="width:100%;padding:10px 16px;">连接</button>
+                    </div>
+                </div>
+                <div class="form-group" id="pcPairCodeRow" style="display:none;">
+                    <label for="pcPairCodeInput">配对码</label>
+                    <input type="text" id="pcPairCodeInput" placeholder="输入电脑端显示的配对码" maxlength="8">
+                    <button type="button" id="pcPairBtn" class="secondary-btn" style="width: 100%; padding: 10px 16px; margin-top: 8px;">配对</button>
+                </div>
+                <div class="form-group" id="pcConnectionStatus" style="display:none;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <span id="pcStatusText" style="color:#4CAF50;font-weight:600;">已连接</span>
+                        <button type="button" id="pcDisconnectBtn" class="secondary-btn" style="white-space:nowrap;padding:8px 14px;color:#ef4444;">断开</button>
+                    </div>
+                    <!-- 文件传输区域 -->
+                    <div id="pcFileTransferArea" style="display:none;margin-top:8px;">
+                    <div style="display:flex;gap:8px;margin-bottom:8px;">
+                        <button type="button" id="pcSendFileBtn" class="secondary-btn" style="flex:1;padding:10px;">
+                            发送文件到电脑
+                        </button>
+                    </div>
+                    <input type="file" id="pcFileInput" style="display:none;" multiple>
+                    <!-- 传输进度 -->
+                    <div id="pcTransferProgress" style="display:none;">
+                        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">
+                            <span id="pcTransferFileName">文件名</span>
+                            <span id="pcTransferPercent">0%</span>
+                        </div>
+                        <div style="height:6px;background:var(--border-color);border-radius:3px;overflow:hidden;">
+                            <div id="pcTransferBar" style="height:100%;background:#4CAF50;border-radius:3px;width:0%;transition:width 0.2s;"></div>
+                        </div>
+                    </div>
+                    <!-- 接收文件提示 -->
+                    <div id="pcReceiveProgress" style="display:none;">
+                        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">
+                            <span id="pcReceiveFileName">接收中...</span>
+                            <span id="pcReceivePercent">0%</span>
+                        </div>
+                        <div style="height:6px;background:var(--border-color);border-radius:3px;overflow:hidden;">
+                            <div id="pcReceiveBar" style="height:100%;background:#2196F3;border-radius:3px;width:0%;transition:width 0.2s;"></div>
+                        </div>
+                    </div>
+                    </div>
+                    </div>
+
+                    <!-- 信息流广告容器 -->
+                    <div id="pcFeedAdGroup" style="display:none;margin-top:8px;">
+                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                            广告
+                        </label>
+                        <div id="pcFeedAdContainer" style="width:100%;min-height:100px;border-radius:8px;overflow:hidden;background:var(--bg-color);">
+                            <div id="pcFeedAdLoading" style="display:flex;align-items:center;justify-content:center;height:100px;color:var(--text-secondary);font-size:13px;">加载中...</div>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-overlay sub-settings-modal" id="backupRestoreSettingsModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>备份/恢复数据</h2>
+                <button class="modal-close sub-settings-back">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <div class="bs-card" id="bsBackupBtn" style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--border-color);border-radius:8px;cursor:pointer;">
+                        <div class="bs-card-icon bs-card-icon-primary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        </div>
+                        <div class="bs-card-info" style="flex:1;">
+                            <span style="font-size:14px;">备份数据</span>
+                            <small style="display:block;color:var(--text-secondary);font-size:12px;">将所有设置和聊天记录导出</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="bs-card" id="bsRestoreBtn" style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--border-color);border-radius:8px;cursor:pointer;position:relative;">
+                        <div class="bs-card-icon bs-card-icon-secondary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        </div>
+                        <div class="bs-card-info" style="flex:1;">
+                            <span style="font-size:14px;">恢复数据</span>
+                            <small style="display:block;color:var(--text-secondary);font-size:12px;">从 JSON 文件恢复设置和聊天记录</small>
+                        </div>
+                        <input type="file" id="bsRestoreFileInput" accept=".json" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="bs-warning" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(245,158,11,0.1);border-radius:8px;font-size:12px;color:var(--text-secondary);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex-shrink:0;color:#f59e0b;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        <span>恢复数据将覆盖当前所有设置和聊天记录，请谨慎操作</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 专家模式子弹窗 -->
+    <div class="modal-overlay sub-settings-modal" id="expertModeSettingsModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>专家模式</h2>
+                <button class="modal-close sub-settings-back">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">专家模式</span>
+                            <small class="setting-toggle-desc">使用高级功能</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="expertModeSwitch">
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group" id="workPathGroup" style="display:none;">
+                    <label>工作目录</label>
+                    <div id="workPathDisplay" style="cursor:pointer;padding:10px 12px;border:1px solid var(--border-color);border-radius:8px;font-size:14px;color:var(--text-primary);word-break:break-all;">未设置</div>
+                    <small style="color: var(--text-secondary); font-size: 12px;">点击设置 AI 助手的工作目录路径</small>
+                </div>
+                <div class="form-group" id="pcWorkPathGroup" style="display:none;">
+                    <label>电脑端工作目录</label>
+                    <div id="pcWorkPathDisplay" style="cursor:pointer;padding:10px 12px;border:1px solid var(--border-color);border-radius:8px;font-size:14px;color:var(--text-primary);word-break:break-all;">未设置</div>
+                    <small style="color: var(--text-secondary); font-size: 12px;">点击设置已连接电脑端的工作目录路径</small>
+                </div>
+
+
+                <!-- 信息流广告容器 -->
+                <div class="form-group" id="feedAdGroup" style="display:none;">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                        广告
+                    </label>
+                    <div id="feedAdContainer" style="width:100%;min-height:100px;border-radius:8px;overflow:hidden;background:var(--bg-color);">
+                        <div id="feedAdLoading" style="display:flex;align-items:center;justify-content:center;height:100px;color:var(--text-secondary);font-size:13px;">加载中...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MCP 服务器设置子弹窗 -->
+    <div class="modal-overlay sub-settings-modal" id="mcpSettingsModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>MCP 服务器</h2>
+                <button class="modal-close sub-settings-back">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <small style="color: var(--text-secondary); font-size: 12px; display: block; line-height: 1.6;">
+                        💡 MCP (Model Context Protocol) 是 AI 工具标准协议。添加 MCP Server 后，AI 可以使用服务器提供的工具（如查询信息、下单等）。仅支持 Streamable HTTP 传输。
+                    </small>
+                </div>
+                <button class="dashed-add-btn" id="mcpAddServerBtn" onclick="openMcpEditModal()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>添加 MCP 服务器</span>
+                </button>
+                <div id="mcpServerList" class="agent-list" style="margin-top:16px;padding-top:0;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MCP 服务器编辑弹窗 -->
+    <div class="modal-overlay" id="mcpEditModal" onclick="if(event.target===this)closeMcpEditModal()">
+        <div class="modal custom-provider-edit-modal fullscreen-modal">
+            <div class="modal-header">
+                <h2 id="mcpEditTitle">添加 MCP 服务器</h2>
+                <button class="modal-close" id="mcpEditCancelBtn" onclick="closeMcpEditModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="mcpEditName">名称</label>
+                    <input type="text" id="mcpEditName" placeholder="如：瑞幸咖啡" maxlength="30">
+                </div>
+                <div class="form-group">
+                    <label for="mcpEditUrl">服务器 URL</label>
+                    <input type="text" id="mcpEditUrl" placeholder="如：https://gwmcp.lkcoffee.com/order/user/mcp" maxlength="500">
+                    <small style="color: var(--text-secondary); font-size: 12px; display: block; margin-top: 4px;">MCP Server 的 HTTP 端点地址</small>
+                </div>
+                <div class="form-group">
+                    <label for="mcpEditHeaders">请求头（可选）</label>
+                    <textarea id="mcpEditHeaders" placeholder='{"Authorization": "Bearer xxx"}' rows="3"></textarea>
+                    <small style="color: var(--text-secondary); font-size: 12px; display: block; margin-top: 4px;">JSON 格式的自定义请求头，用于身份认证等</small>
+                </div>
+                <button type="button" class="secondary-btn" id="mcpEditSaveBtn" style="width: 100%; padding: 10px 16px; margin-top: 8px;">保存并连接</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自定义服务商编辑弹窗 -->
+    <div class="modal-overlay" id="customProviderEditModal">
+        <div class="modal custom-provider-edit-modal fullscreen-modal">
+            <div class="modal-header">
+                <h2 id="customProviderEditTitle">添加服务商</h2>
+                <button class="modal-close" id="closeCustomProviderEdit">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="customProviderName">服务商名称</label>
+                    <input type="text" id="customProviderName" placeholder="如：MiniMax" maxlength="30">
+                </div>
+                <div class="form-group">
+                    <label>API 类型</label>
+                    <div class="custom-select-wrapper">
+                        <div class="custom-select-container">
+                            <button type="button" class="custom-select-btn" id="apiTypeSelectBtn">
+                                <span class="custom-select-text" id="apiTypeSelectText">OpenAI 兼容模式</span>
+                                <svg class="custom-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <small style="color: var(--text-secondary); font-size: 12px; display: block; margin-top: 4px;">
+                        OpenAI兼容模式使用 /chat/completions 端点；Responses兼容模式使用 /responses 端点（如千问、豆包）
+                    </small>
+                </div>
+                <div class="form-group">
+                    <label for="customProviderBaseUrl">API 基础地址</label>
+                    <input type="text" id="customProviderBaseUrl" placeholder="如：https://api.minimax.chat/v1"
+                        maxlength="200">
+                    <small style="color: var(--text-secondary); font-size: 12px; display: block; margin-top: 4px;">
+                        输入基础URL，系统会自动添加 /chat/completions 或 /responses
+                    </small>
+                </div>
+                <div class="form-group">
+                    <label>模型列表</label>
+                    <div class="custom-provider-models-section">
+                        <div class="manage-models-header">
+                            <div class="model-input-wrapper">
+                                <input type="text" id="customProviderModelInput" placeholder="输入模型ID" maxlength="100">
+                                <button type="button" class="model-input-add-btn" id="addCustomProviderModelBtn">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="models-list" id="customProviderModelsList">
+                            <!-- 模型列表动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 获取API KEY弹窗 -->
+    <div class="modal-overlay" id="getApiKeyModal">
+        <div class="modal get-api-key-modal small-modal">
+            <div class="modal-header">
+                <h2>获取API KEY</h2>
+                <button class="modal-close" id="closeGetApiKey">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="get-api-key-description">
+                    请选择下方AI服务商创建API Key。若您希望享受免费额度，建议优先选择千问或豆包；若您追求便捷使用体验，建议优先选择DeepSeek或GLM。
+                    <small style="display: block; margin-top: 8px; color: var(--text-secondary); font-size: 12px;">温馨提示：部分服务商可能需要充值使用，千问与豆包为新用户提供丰厚的免费Token额度，单模型可享50万至100万Tokens。</small>
+                </div>
+                <div class="provider-links-grid">
+                    <a class="provider-link-item" href="https://platform.deepseek.com/api_keys" target="_blank">
+                        <img src="icons/db3_processed/AIprovidersvg/deepseek.svg" alt="DeepSeek" class="provider-icon">
+                        <span>DeepSeek</span>
+                    </a>
+                    <a class="provider-link-item" href="https://bailian.console.aliyun.com" target="_blank">
+                        <img src="icons/db3_processed/AIprovidersvg/qwen.svg" alt="Qwen" class="provider-icon">
+                        <span>千问</span>
+                    </a>
+                    <a class="provider-link-item" href="https://console.volcengine.com/ark/apiKey" target="_blank">
+                        <img src="icons/db3_processed/AIprovidersvg/volcengine.svg" alt="Doubao" class="provider-icon">
+                        <span>豆包</span>
+                    </a>
+                    <a class="provider-link-item" href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank">
+                        <img src="icons/db3_processed/AIprovidersvg/zhipu.svg" alt="GLM" class="provider-icon">
+                        <span>GLM</span>
+                    </a>
+                    <a class="provider-link-item" href="https://www.minimaxi.com/user-center/basic-information" target="_blank">
+                        <img src="icons/db3_processed/AIprovidersvg/minimax.svg" alt="MiniMax" class="provider-icon">
+                        <span>MiniMax</span>
+                    </a>
+                    <a class="provider-link-item" href="https://platform.moonshot.cn/" target="_blank">
+                        <img src="icons/db3_processed/AIprovidersvg/kimi.svg" alt="Kimi" class="provider-icon">
+                        <span>Kimi</span>
+                    </a>
+                    <a class="provider-link-item" href="https://platform.xiaomimimo.com/console" target="_blank">
+                        <img src="icons/db3_processed/AIprovidersvg/mimo.svg" alt="MiMo" class="provider-icon">
+                        <span>MiMo</span>
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="closeGetApiKeyBtn">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 智能体选择弹窗 -->
+    <div class="modal-overlay" id="agentSelectModal">
+        <div class="modal agent-modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>选择智能体</h2>
+                <button class="modal-close" id="closeAgentSelect">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="agent-list" id="agentList">
+                    <button class="dashed-add-btn" id="addAgentBtn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>创建自定义智能体</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 智能体编辑弹窗 -->
+    <div class="modal-overlay" id="agentEditModal">
+        <div class="modal agent-edit-modal fullscreen-modal">
+            <div class="modal-header">
+                <h2 id="agentEditTitle">创建智能体</h2>
+                <button class="modal-close" id="closeAgentEdit">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="agentNameInput">智能体名称</label>
+                    <div class="name-input-wrapper">
+                        <input type="text" id="agentNameInput" placeholder="例如：翻译助手、代码专家" maxlength="20">
+                        <div class="preset-dropdown">
+                            <button class="preset-dropdown-btn" id="presetDropdownBtn" type="button" title="选择预设模板">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" class="preset-dropdown-arrow">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>智能体图标</label>
+                    <div class="icon-picker">
+                        <div class="icon-preview" id="iconPreview"><img src="icons/db3_processed/znzs.png" alt="图标"
+                                class="icon-preview-img"></div>
+                        <div class="icon-options" id="iconOptions">
+                            <!-- 图片图标 -->
+                            <span class="icon-img-option" data-icon="icons/db3_processed/duanqun.png"><img
+                                    src="icons/db3_processed/duanqun.png" alt="短裙"
+                                    data-icon="icons/db3_processed/duanqun.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/lanqiu.png"><img
+                                    src="icons/db3_processed/lanqiu.png" alt="篮球"
+                                    data-icon="icons/db3_processed/lanqiu.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/limao.png"><img
+                                    src="icons/db3_processed/limao.png" alt="礼帽"
+                                    data-icon="icons/db3_processed/limao.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/motuoche.png"><img
+                                    src="icons/db3_processed/motuoche.png" alt="摩托车"
+                                    data-icon="icons/db3_processed/motuoche.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/qianshuij.png"><img
+                                    src="icons/db3_processed/qianshuij.png" alt="潜水镜"
+                                    data-icon="icons/db3_processed/qianshuij.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/quantao.png"><img
+                                    src="icons/db3_processed/quantao.png" alt="拳套"
+                                    data-icon="icons/db3_processed/quantao.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/yandou.png"><img
+                                    src="icons/db3_processed/yandou.png" alt="烟斗"
+                                    data-icon="icons/db3_processed/yandou.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/zixingche.png"><img
+                                    src="icons/db3_processed/zixingche.png" alt="自行车"
+                                    data-icon="icons/db3_processed/zixingche.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/zuqiu.png"><img
+                                    src="icons/db3_processed/zuqiu.png" alt="足球"
+                                    data-icon="icons/db3_processed/zuqiu.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/znzs.png"><img
+                                    src="icons/db3_processed/znzs.png" alt="智能助手"
+                                    data-icon="icons/db3_processed/znzs.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/zgl.png"><img
+                                    src="icons/db3_processed/zgl.png" alt="诸葛亮"
+                                    data-icon="icons/db3_processed/zgl.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/qsh.png"><img
+                                    src="icons/db3_processed/qsh.png" alt="秦始皇"
+                                    data-icon="icons/db3_processed/qsh.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/wzt.png"><img
+                                    src="icons/db3_processed/wzt.png" alt="武则天"
+                                    data-icon="icons/db3_processed/wzt.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/libai.png"><img
+                                    src="icons/db3_processed/libai.png" alt="李白"
+                                    data-icon="icons/db3_processed/libai.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/kongzi.png"><img
+                                    src="icons/db3_processed/kongzi.png" alt="孔子"
+                                    data-icon="icons/db3_processed/kongzi.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/lqz.png"><img
+                                    src="icons/db3_processed/lqz.png" alt="李清照"
+                                    data-icon="icons/db3_processed/lqz.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/hml.png"><img
+                                    src="icons/db3_processed/hml.png" alt="花木兰"
+                                    data-icon="icons/db3_processed/hml.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/wzj.png"><img
+                                    src="icons/db3_processed/wzj.png" alt="王昭君"
+                                    data-icon="icons/db3_processed/wzj.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/chaoren.png"><img
+                                    src="icons/db3_processed/chaoren.png" alt="超人"
+                                    data-icon="icons/db3_processed/chaoren.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/xiaog.png"><img
+                                    src="icons/db3_processed/xiaog.png" alt="小刚"
+                                    data-icon="icons/db3_processed/xiaog.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/xiaom.png"><img
+                                    src="icons/db3_processed/xiaom.png" alt="小明"
+                                    data-icon="icons/db3_processed/xiaom.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/xx.png"><img
+                                    src="icons/db3_processed/xx.png" alt="小新"
+                                    data-icon="icons/db3_processed/xx.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/jiandao.png"><img
+                                    src="icons/db3_processed/jiandao.png" alt="剪刀"
+                                    data-icon="icons/db3_processed/jiandao.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/shizhong.png"><img
+                                    src="icons/db3_processed/shizhong.png" alt="时钟"
+                                    data-icon="icons/db3_processed/shizhong.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/shouji.png"><img
+                                    src="icons/db3_processed/shouji.png" alt="手机"
+                                    data-icon="icons/db3_processed/shouji.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/shubao.png"><img
+                                    src="icons/db3_processed/shubao.png" alt="书包"
+                                    data-icon="icons/db3_processed/shubao.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/yanjing.png"><img
+                                    src="icons/db3_processed/yanjing.png" alt="眼镜"
+                                    data-icon="icons/db3_processed/yanjing.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/yaoshi.png"><img
+                                    src="icons/db3_processed/yaoshi.png" alt="钥匙"
+                                    data-icon="icons/db3_processed/yaoshi.png"></span>
+                            <span class="icon-img-option" data-icon="icons/db3_processed/yusan.png"><img
+                                    src="icons/db3_processed/yusan.png" alt="雨伞"
+                                    data-icon="icons/db3_processed/yusan.png"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="agentSystemInput">人设描述（系统提示词）</label>
+                    <textarea id="agentSystemInput" placeholder="描述这个智能体的特点和专业领域，例如：你是一个专业的翻译助手，擅长中英文互译..." rows="16"
+                        maxlength="2000"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>聊天背景</label>
+                    <div id="chatBgPreview" style="width:100%;height:120px;border-radius:10px;border:1.5px dashed var(--border-color);background-color:var(--surface-color);display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center;">
+                        <span id="chatBgPlaceholder" style="color:var(--text-secondary);font-size:13px;">未设置背景</span>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:10px;">
+                        <button type="button" class="secondary-btn" id="chatBgSelectBtn" style="flex:1;padding:8px 0;font-size:13px;">选择图片</button>
+                        <button type="button" class="secondary-btn" id="chatBgResetBtn" style="flex:1;padding:8px 0;font-size:13px;color:#e74c3c;border-color:#e74c3c44;">恢复默认</button>
+                    </div>
+                    <div id="chatBgOpacityRow" style="display:none;margin-top:10px;" class="setting-toggle-row">
+                        <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap;">不透明度</span>
+                        <input type="range" id="chatBgOpacitySlider" min="0" max="100" value="30" style="flex:1;margin:0 10px;">
+                        <span id="chatBgOpacityValue" style="font-size:13px;color:var(--text-secondary);min-width:36px;text-align:right;">30%</span>
+                    </div>
+                    <input type="file" id="chatBgUploadInput" accept="image/*" style="display:none;">
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 话题抽屉（右侧） -->
+    <div class="topic-drawer-overlay" id="topicDrawerOverlay"></div>
+    <div class="topic-drawer modal fullscreen-modal" id="topicDrawer">
+        <div class="topic-drawer-header modal-header">
+            <h2 class="drawer-title" id="drawerTitle" style="cursor:pointer;user-select:none;">Bluox 1.3.6</h2>
+            <div style="display:flex;align-items:center;gap:0;flex-shrink:0">
+                <button class="topic-drawer-search-btn" id="topicDrawerSearchBtn" title="搜索所有对话">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
+                <button class="modal-close" id="topicDrawerClose">&times;</button>
+            </div>
+        </div>
+        <div class="topic-drawer-body" id="topicDrawerBody">
+            <!-- 所有智能体的话题列表动态生成 -->
+        </div>
+        <div class="topic-drawer-footer">
+            <button class="topic-drawer-settings-btn" id="topicDrawerCancelBtn" style="display: none;">
+                取消
+            </button>
+            <button class="topic-drawer-settings-btn" id="topicDrawerSelectAllBtn" style="display: none;">
+                全选
+            </button>
+            <button class="topic-drawer-batch-btn" id="topicDrawerBatchBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                </svg>
+                <span class="btn-text">批量删除</span>
+            </button>
+            <button class="topic-drawer-settings-btn" id="topicDrawerSettingsBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                    </path>
+                </svg>
+                设置
+            </button>
+        </div>
+        <!-- 底部信息区域 -->
+        <div class="topic-drawer-info">
+            <div class="info-links-row">
+                <a href="https://www.xiaolanbox.com" target="_blank" rel="noopener" class="sidebar-link-item" title="小蓝AI盒子官网">
+                    <svg viewBox="0 0 512 512" width="14" height="14">
+                        <rect width="512" height="512" fill="white" rx="60" />
+                        <rect x="95" y="138" width="332" height="200" rx="30" fill="rgba(0,0,0,0.2)" />
+                        <polygon points="155,338 205,338 135,408" fill="rgba(0,0,0,0.2)" />
+                        <rect x="90" y="130" width="332" height="200" rx="30" fill="black" />
+                        <polygon points="150,330 200,330 130,400" fill="black" />
+                        <circle cx="200" cy="230" r="22" fill="white" />
+                        <circle cx="312" cy="230" r="22" fill="white" />
+                    </svg>
+                    <span>官网</span>
+                </a>
+                <a href="javascript:void(0)" class="sidebar-link-item" onclick="showDouyinQR()" title="抖音：44176182789">
+                    <svg width="14" height="14" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0 0m184.32 0l655.36 0q184.32 0 184.32 184.32l0 655.36q0 184.32-184.32 184.32l-655.36 0q-184.32 0-184.32-184.32l0-655.36q0-184.32 184.32-184.32Z" fill="#111111"></path>
+                        <path d="M204.27776 670.59712a246.25152 246.25152 0 0 1 245.97504-245.97504v147.57888a98.49856 98.49856 0 0 0-98.38592 98.38592c0 48.34304 26.14272 100.352 83.54816 100.352 3.81952 0 93.55264-0.88064 93.55264-77.19936V134.35904h157.26592a133.31456 133.31456 0 0 0 133.12 132.99712l-0.13312 147.31264a273.152 273.152 0 0 1-142.62272-38.912l-0.06144 317.98272c0 146.00192-124.24192 224.77824-241.14176 224.77824-131.74784 0.03072-231.1168-106.56768-231.1168-247.92064z" fill="#FF4040"></path>
+                        <path d="M164.92544 631.23456a246.25152 246.25152 0 0 1 245.97504-245.97504v147.57888a98.49856 98.49856 0 0 0-98.38592 98.38592c0 48.34304 26.14272 100.352 83.54816 100.352 3.81952 0 93.55264-0.88064 93.55264-77.19936V94.99648h157.26592a133.31456 133.31456 0 0 0 133.12 132.99712l-0.13312 147.31264a273.152 273.152 0 0 1-142.62272-38.912l-0.06144 317.98272c0 146.00192-124.24192 224.77824-241.14176 224.77824-131.74784 0.03072-231.1168-106.56768-231.1168-247.92064z" fill="#00F5FF"></path>
+                        <path d="M410.91072 427.58144c-158.8224 20.15232-284.44672 222.72-154.112 405.00224 120.40192 98.47808 373.68832 41.20576 380.70272-171.85792l-0.17408-324.1472a280.7296 280.7296 0 0 0 142.88896 38.62528V261.2224a144.98816 144.98816 0 0 1-72.8064-54.82496 135.23968 135.23968 0 0 1-54.70208-72.45824h-123.66848l-0.08192 561.41824c-0.11264 78.46912-130.9696 106.41408-164.18816 30.2592-83.18976-39.77216-64.37888-190.9248 46.31552-192.57344z" fill="#FFFFFF"></path>
+                    </svg>
+                    <span>抖音</span>
+                </a>
+                <a href="javascript:void(0)" class="sidebar-link-item" onclick="showQqQR()" title="QQ群">
+                    <img src="icons/qq.svg" width="14" height="14" alt="QQ" class="qq-icon">
+                    <span>QQ群</span>
+                </a>
+                <a href="https://xiaolanbox.com/#feedback" target="_blank" rel="noopener" class="sidebar-link-item" title="举报和反馈">反馈</a>
+                <a href="javascript:void(0)" class="sidebar-link-item" id="checkUpdateBtn" title="检查更新">更新</a>
+                <a href="http://www.xiaolanbox.com/right/privacy-policy.html" target="_blank" rel="noopener" class="sidebar-link-item" title="隐私政策">隐私</a>
+            </div>
+            <div class="info-item">
+                <span class="info-text"><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener"
+                        style="color: inherit; text-decoration: none;">粤ICP备2026039790号-1A</a></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 抖音二维码弹窗 -->
+    <div class="douyin-qr-overlay" id="douyinQrOverlay" onclick="hideDouyinQR()">
+        <div class="douyin-qr-modal" onclick="event.stopPropagation()">
+            <div class="douyin-qr-close" onclick="hideDouyinQR()">&times;</div>
+            <img src="icons/douyin-qr.png" class="douyin-qr-img" alt="抖音二维码">
+            <p class="douyin-qr-text">抖音号：44176182789</p>
+        </div>
+    </div>
+
+    <!-- QQ群二维码弹窗 -->
+    <div class="qq-qr-overlay" id="qqQrOverlay" onclick="hideQqQR()">
+        <div class="qq-qr-modal" onclick="event.stopPropagation()">
+            <div class="qq-qr-close" onclick="hideQqQR()">&times;</div>
+            <img src="icons/qq_qr.jpg" class="qq-qr-img" alt="QQ群二维码">
+            <p class="qq-qr-text">QQ群：284957094</p>
+        </div>
+    </div>
+
+    <!-- 编辑遮罩层 -->
+    <div class="edit-overlay" id="editOverlay"></div>
+
+    <!-- 话题切换加载遮罩层 -->
+    <div class="topic-loading-overlay" id="topicLoadingOverlay">
+        <div class="topic-loading-spinner">
+            <svg class="topic-switch-icon" viewBox="0 0 512 512" width="100" height="100">
+                <defs>
+                    <linearGradient id="topicSwitchGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#42A5F5" />
+                        <stop offset="50%" style="stop-color:#2196F3" />
+                        <stop offset="100%" style="stop-color:#1565C0" />
+                    </linearGradient>
+                </defs>
+                <rect width="512" height="512" rx="60" fill="white" />
+                <rect x="95" y="138" width="332" height="200" rx="30" fill="rgba(0,0,0,0.2)" />
+                <polygon points="155,338 205,338 135,408" fill="rgba(0,0,0,0.2)" />
+                <rect x="90" y="130" width="332" height="200" rx="30" fill="black" />
+                <polygon points="150,330 200,330 130,400" fill="black" />
+                <circle cx="200" cy="230" r="22" fill="white" />
+                <circle cx="312" cy="230" r="22" fill="white" />
+            </svg>
+        </div>
+    </div>
+
+    <!-- 智能体删除选项弹窗 -->
+
+
+    <!-- 批量删除话题弹窗 -->
+    <!-- 文件查看弹窗 -->
+    <div class="modal-overlay" id="fileViewerModal">
+        <div class="modal file-viewer-modal small-modal">
+            <div class="modal-header">
+                <h2 id="fileViewerTitle">文件内容</h2>
+                <button class="modal-close" id="closeFileViewer">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="file-viewer-content" id="fileViewerContent">
+                    <!-- 文件内容动态显示 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="closeFileViewerBtn">关闭</button>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- 输入弹窗（用于重命名等） -->
+    <div class="modal-overlay" id="inputModal">
+        <div class="modal input-modal small-modal">
+            <div class="modal-header">
+                <h2 id="inputModalTitle">输入</h2>
+                <button class="modal-close" id="closeInputModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group password-input-group">
+                    <input type="text" id="inputModalInput" placeholder="请输入..." maxlength="50" autocomplete="off">
+                    <button type="button" id="passwordToggleBtn" class="password-toggle-btn">
+                        <!-- 眼睛图标 - 显示状态 -->
+                        <svg id="eyeIconVisible" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" style="display: block;">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        <!-- 眼睛图标 - 隐藏状态 -->
+                        <svg id="eyeIconHidden" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" style="display: none;">
+                            <path
+                                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24">
+                            </path>
+                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="inputModalCancel">取消</button>
+                <button class="btn btn-primary" id="inputModalConfirm">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 知识库管理弹窗 -->
+    <div class="modal-overlay" id="knowledgeBaseModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>知识库管理<span class="info-tooltip-trigger tooltip-right" tabindex="0" style="margin-left: 5px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="16" x2="12" y2="12" />
+                            <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                        <span class="info-tooltip-content" style="font-size: 15px;">旧版 .doc 文件解析效果较差，建议转换为 .txt、.docx
+                            等格式以获得更好的效果。</span>
+                    </span></h2>
+                <button class="modal-close" id="closeKnowledgeBase">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="file" id="knowledgeUploadInput" accept=".txt,.md,.pdf,.docx,.doc,.json,.csv" multiple
+                    style="display: none;">
+                <div class="agent-list" style="padding-top:0;">
+                    <div class="dashed-add-btn" id="knowledgeUploadBtn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>上传文档</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 知识库检索结果选择弹窗 -->
+    <!-- 图片压缩工具弹窗 -->
+    <div class="modal-overlay" id="imageCompressModal">
+        <div class="modal small-modal" style="max-width: 600px; width: 95%;">
+            <div class="modal-header">
+                <h2>图片压缩工具</h2>
+                <button class="modal-close" id="closeImageCompress">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <button type="button" class="btn btn-primary" id="selectImageBtn" style="display: inline-block;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" style="vertical-align: middle; margin-right: 6px;">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                            <polyline points="21 15 16 10 5 21"></polyline>
+                        </svg>
+                        选择图片
+                    </button>
+                    <input type="file" id="compressFileInput" accept="image/*" style="display: none;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+                    <div class="form-group">
+                        <label for="compressMaxWidth">最大宽度 (px)</label>
+                        <input type="number" id="compressMaxWidth" value="1600" min="400" max="4000">
+                    </div>
+                    <div class="form-group">
+                        <label for="compressMaxHeight">最大高度 (px)</label>
+                        <input type="number" id="compressMaxHeight" value="1600" min="400" max="4000">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label>压缩质量: <span id="compressQualityValue">0.9</span></label>
+                    <input type="range" id="compressQuality" min="0.1" max="1" step="0.05" value="0.9"
+                        style="width: 100%;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label for="compressMaxSizeMB">目标大小 (MB)</label>
+                    <input type="number" id="compressMaxSizeMB" value="0.5" min="0.1" max="10" step="0.5">
+                </div>
+
+                <button type="button" class="btn btn-primary" id="startCompressBtn" disabled
+                    style="width: 100%; margin-bottom: 20px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        style="vertical-align: middle; margin-right: 6px;">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                    开始压缩
+                </button>
+
+                <!-- 原图 -->
+                <div style="background: var(--ai-msg-bg); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h3 style="font-size: 15px; color: var(--text-primary);">原图</h3>
+                        <span id="compressOriginalSize" style="font-size: 13px; color: var(--primary-color);">-</span>
+                    </div>
+                    <div
+                        style="min-height: 200px; display: flex; align-items: center; justify-content: center; background: var(--surface-color); border-radius: 6px;">
+                        <img id="compressOriginalImage" alt="原图"
+                            style="max-width: 100%; max-height: 300px; object-fit: contain; display: none;">
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <p style="font-size: 13px; color: var(--text-secondary);">尺寸: <span
+                                id="compressOriginalDimensions">-</span></p>
+                    </div>
+                </div>
+
+                <!-- 压缩后 -->
+                <div style="background: var(--ai-msg-bg); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h3 style="font-size: 15px; color: var(--text-primary);">压缩后</h3>
+                        <span id="compressResultSize" style="font-size: 13px; color: var(--primary-color);">-</span>
+                    </div>
+                    <div
+                        style="min-height: 200px; display: flex; align-items: center; justify-content: center; background: var(--surface-color); border-radius: 6px;">
+                        <img id="compressResultImage" alt="压缩后"
+                            style="max-width: 100%; max-height: 300px; object-fit: contain; display: none;">
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <p style="font-size: 13px; color: var(--text-secondary);">尺寸: <span
+                                id="compressResultDimensions">-</span></p>
+                        <p style="font-size: 13px; color: var(--text-secondary);">压缩质量: <span
+                                id="compressUsedQuality">-</span></p>
+                    </div>
+                    <button type="button" class="btn btn-secondary" id="downloadCompressedBtn" disabled
+                        style="width: 100%; margin-top: 10px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" style="vertical-align: middle; margin-right: 6px;">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        下载压缩图
+                    </button>
+                </div>
+
+                <!-- 压缩效果统计 -->
+                <div id="compressStats" style="display: none; margin-top: 20px;">
+                    <div class="settings-section-title" style="margin-bottom: 15px;">压缩效果</div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                        <div
+                            style="padding: 15px; background: var(--ai-msg-bg); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px;">原图大小</div>
+                            <div style="font-size: 20px; font-weight: bold; color: var(--primary-color);"
+                                id="statCompressOriginal">-</div>
+                        </div>
+                        <div
+                            style="padding: 15px; background: var(--ai-msg-bg); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px;">压缩后大小</div>
+                            <div style="font-size: 20px; font-weight: bold; color: var(--primary-color);"
+                                id="statCompressResult">-</div>
+                        </div>
+                        <div
+                            style="padding: 15px; background: var(--ai-msg-bg); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px;">节省空间</div>
+                            <div style="font-size: 20px; font-weight: bold; color: #10b981;" id="statCompressSavings">-
+                            </div>
+                        </div>
+                        <div
+                            style="padding: 15px; background: var(--ai-msg-bg); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px;">压缩率</div>
+                            <div style="font-size: 20px; font-weight: bold; color: var(--primary-color);"
+                                id="statCompressRatio">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 首次用户引导页 -->
+    <div class="onboarding-overlay" id="onboardingOverlay">
+        <div class="onboarding-container">
+            <div class="onboarding-progress">
+                <div class="progress-dots">
+                    <div class="progress-dot active" data-step="1"></div>
+                    <div class="progress-dot" data-step="2"></div>
+                    <div class="progress-dot" data-step="3"></div>
+                </div>
+            </div>
+
+            <div class="onboarding-step active" data-step="1">
+                <h2>欢迎使用小蓝AI盒子！</h2>
+                <p>这是一款功能强大的AI聊天应用，让我们来了解一下您的使用背景</p>
+                <div class="question">
+                    <p class="question-title">1、您是否使用过盒子类AI应用端？</p>
+                    <p class="question-subtitle">如 Chatbox、Cherry Studio 等</p>
+                    <div class="answer-options">
+                        <button class="answer-btn" data-value="yes">使用过</button>
+                        <button class="answer-btn" data-value="no">第一次使用</button>
+                    </div>
+                </div>
+                <div class="agreement-section">
+                    <label class="agreement-checkbox-label">
+                        <input type="checkbox" id="agreementCheckbox" class="agreement-checkbox">
+                        <span class="agreement-text">
+                            我已阅读并同意
+                            <a href="#" data-url="http://www.xiaolanbox.com/right/terms-of-service.html" data-title="用户服务协议"
+                                class="agreement-link">《用户服务协议》</a>
+                            和
+                            <a href="#" data-url="http://www.xiaolanbox.com/right/privacy-policy.html" data-title="隐私政策"
+                                class="agreement-link">《隐私政策》</a>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="onboarding-step" data-step="2">
+                <h2>了解AI API</h2>
+                <p>我们需要了解您对AI服务API的熟悉程度</p>
+                <div class="question">
+                    <p class="question-title">2、您是否了解AI服务商的API接入方式？</p>
+                    <div class="answer-options">
+                        <button class="answer-btn" data-value="yes">非常了解</button>
+                        <button class="answer-btn" data-value="some">了解一些</button>
+                        <button class="answer-btn" data-value="no">完全不了解</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="onboarding-step" data-step="3">
+                <h2>准备开始</h2>
+                <p>最后一个问题，让我们帮您快速开始</p>
+                <div class="question">
+                    <p class="question-title">3、您是否有自己的API Key？</p>
+                    <div class="answer-options">
+                        <button class="answer-btn" data-value="yes">已有API Key</button>
+                        <button class="answer-btn" data-value="no">还没有</button>
+                    </div>
+                </div>
+                <div class="onboarding-footer">
+                    <button class="btn btn-primary onboarding-finish" id="onboardingFinish">开始使用</button>
+                </div>
+            </div>
+
+            <div class="onboarding-nav">
+                <button class="nav-btn prev-btn" id="prevStep" style="visibility: hidden;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                    上一步
+                </button>
+                <button class="nav-btn next-btn" id="nextStep" style="visibility: hidden;">
+                    下一步
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引导完成页面 -->
+    <div class="welcome-overlay" id="welcomeOverlay">
+        <div class="welcome-container">
+            <h2 class="welcome-title">欢迎使用小蓝AI盒子！</h2>
+
+            <!-- 抖音提示区域 -->
+            <div class="xiaohongshu-section" id="xiaohongshuSection" style="display: none;">
+                <div class="xiaohongshu-card">
+                    <div class="xiaohongshu-content">
+                        <p class="xiaohongshu-title"> 推荐了解</p>
+                        <p class="xiaohongshu-text"><a
+                                href="https://www.xiaolanbox.com" target="_blank"
+                                rel="noopener" style="color: inherit; text-decoration: underline;">前往小蓝AI盒子官网</a></p>
+                        <p class="xiaohongshu-desc">获取详细使用教程和技巧</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 基础教程区域 -->
+            <div class="tutorial-section" id="tutorialSection" style="display: none;">
+                <h3 class="tutorial-title"> 基础使用说明</h3>
+                <div class="tutorial-steps">
+                    <div class="tutorial-step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <p class="step-title">打开设置</p>
+                            <p class="step-desc">点击右上角侧边栏，再点右下角设置</p>
+                        </div>
+                    </div>
+                    <div class="tutorial-step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <p class="step-title">配置API Key</p>
+                            <p class="step-desc">选择AI服务商，输入API Key（没有可点击获取）</p>
+                        </div>
+                    </div>
+                    <div class="tutorial-step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <p class="step-title">获取模型</p>
+                            <p class="step-desc">点击获取模型，选择模型，或点击管理模型进行新增</p>
+                        </div>
+                    </div>
+                    <div class="tutorial-step">
+                        <div class="step-number">4</div>
+                        <div class="step-content">
+                            <p class="step-title">开始使用</p>
+                            <p class="step-desc">测试连接正常后，即可开始聊天</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 简单欢迎语区域 -->
+            <div class="simple-welcome" id="simpleWelcome" style="display: none;">
+                <p class="simple-text">鉴于您的经验，无需调用教程，祝您使用愉快</p>
+            </div>
+
+            <div class="welcome-footer">
+                <button class="btn btn-primary welcome-start-btn" id="welcomeStartBtn">
+                    开始使用
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 笔记弹窗 -->
+    <!-- 笔记列表弹窗 -->
+    <div class="modal-overlay" id="notebookModal">
+        <div class="modal agent-modal fullscreen-modal">
+            <div class="modal-header">
+                <h2>笔记</h2>
+                <button class="modal-close" id="closeNotebook">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="agent-list" id="notebookList">
+                    <button class="dashed-add-btn" id="addNoteBtn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>新增笔记</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer" style="flex-direction:column;gap:8px;border-top:none;">
+                <button type="button" class="secondary-btn" id="notebookGetBtn" style="width:100%;padding:10px 16px;">获取电脑端笔记</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 笔记编辑弹窗 -->
+    <div class="modal-overlay" id="notebookEditModal">
+        <div class="modal fullscreen-modal">
+            <div class="modal-header">
+                <h2 id="notebookEditTitle">新笔记</h2>
+                <button class="modal-close" id="closeNotebookEdit">&times;</button>
+            </div>
+            <div class="modal-body" style="display:flex;flex-direction:column;padding:12px 16px;overflow:hidden;">
+                <div id="notebookContent" style="flex:1;width:100%;overflow-y:auto;border:1px solid var(--border-color,#e0e0e0);border-radius:8px;padding:16px;font-size:15px;line-height:1.7;"></div>
+                <textarea id="notebookTextarea" placeholder="点击输入笔记内容..." spellcheck="false" style="display:none;"></textarea>
+            </div>
+            <div class="modal-footer" style="flex-direction:column;gap:8px;border-top:none;">
+                <button type="button" class="secondary-btn" id="notebookEditSyncBtn" style="width:100%;padding:10px 16px;">同步到电脑</button>
+            </div>
+        </div>
+    </div>
+
+    <link rel="stylesheet" href="katex/katex.min.css">
+    <script src="math.min.js"></script>
+    <script src="echarts.min.js"></script>
+    <script src="katex/katex.min.js"></script>
+    <script src="marked.min.js"></script>
+    <script src="app.js"></script>
+    <script src="modules/custom-ref-provider.js"></script>
+    <script src="modules/mcp-client.js"></script>
+    <script src="modules/tool-calling.js"></script>
+    <script src="modules/responses-tool-calling.js"></script>
+    <script src="modules/notebook.js"></script>
+</body>
+
+</html>
