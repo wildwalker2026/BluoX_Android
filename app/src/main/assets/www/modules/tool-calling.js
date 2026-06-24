@@ -173,7 +173,7 @@ function getToolDefinitions() {
             type: "function",
             function: {
                 name: "write_file",
-                description: "将内容写入文件（覆盖整个文件，自动创建父目录），新增文件时用，修改文件用edit_file。支持文件总数在300行以内的文件，或者空文件。⚠️path是必填参数，必须指定完整的文件路径，不能省略！",
+                description: "将内容写入文件（覆盖整个文件，自动创建父目录），新增文件时用，修改文件用edit_file。⚠️path是必填参数，必须指定完整的文件路径，不能省略！",
                 parameters: {
                     type: "object",
                     properties: {
@@ -198,7 +198,7 @@ function getToolDefinitions() {
             type: "function",
             function: {
                 name: "edit_file",
-                description: "精确编辑文件中的指定内容（搜索替换），不改动其他部分。适合修改少量代码，比 write_file 更安全高效。支持文件总数在300行以内的文件。⚠️path是必填参数，必须指定完整的文件路径，不能省略！",
+                description: "精确编辑文件中的指定内容（搜索替换），不改动其他部分。适合修改少量代码，比 write_file 更安全高效。⚠️path是必填参数，必须指定完整的文件路径，不能省略！",
                 parameters: {
                     type: "object",
                     properties: {
@@ -478,10 +478,6 @@ function getToolDefinitions() {
                         timeout: {
                             type: "number",
                             description: "超时时间（秒），默认60"
-                        },
-                        background: {
-                            type: "boolean",
-                            description: "是否后台执行（后台执行才能获取 stdout/stderr），默认 true"
                         }
                     },
                     required: ["command"]
@@ -2621,7 +2617,7 @@ async function executeToolCall(tc) {
             const confirmed = args?._confirmed || false;
             return executeWriteFile(path, content, planLog, confirmed);
         } catch (e) {
-            const hint = e.message.includes('Unterminated') ? 'content参数过长导致JSON被截断。请将内容拆分为多次写入，每次不超过300行，或先write_file创建空文件再用edit_file分批追加。' : '';
+            const hint = e.message.includes('Unterminated') ? 'content参数过长导致JSON被截断。请将内容拆分为多次写入。' : '';
             return `参数解析失败: ${e.message}。${hint}`;
         }
     }
@@ -2792,7 +2788,6 @@ async function executeToolCall(tc) {
             const command = termuxArgs.command;
             const workdir = termuxArgs.workdir || null;
             const timeoutSec = Math.max(1, termuxArgs.timeout || 60);
-            const background = termuxArgs.background !== false; // 默认 true
 
             // 检查 AndroidBridge 是否可用
             if (!window.AndroidBridge || typeof window.AndroidBridge.runTermuxCommand !== 'function') {
@@ -2805,7 +2800,7 @@ async function executeToolCall(tc) {
                 return '🚫 该命令被安全策略禁止执行。';
             }
 
-            // 执行函数（异步回调 + 实时进度）
+            // 执行函数（异步回调）
             const doExecute = async () => {
                 // 初始化全局回调注册表（只创建一次，永不覆盖）
                 if (!window._termuxCallbacks) {
@@ -2817,36 +2812,9 @@ async function executeToolCall(tc) {
                             cb(typeof data === 'string' ? data : JSON.stringify(data));
                         }
                     };
-                    // 实时进度回调注册表
-                    window._termuxProgressCallbacks = {};
-                    window._onTermuxProgress = function(cbId, partial) {
-                        var cb = window._termuxProgressCallbacks[cbId];
-                        if (cb) cb(partial);
-                    };
                 }
 
                 const callbackId = window.AndroidBridge.runTermuxCommand(command, workdir, timeoutSec);
-
-                // 创建终端风格的进度元素，挂到当前 tool-call-card
-                const toolCards = document.querySelectorAll('.tool-call-card');
-                const currentCard = toolCards[toolCards.length - 1];
-                let progressEl = null;
-                if (currentCard) {
-                    progressEl = currentCard.querySelector('.tool-call-result');
-                }
-
-                // 注册实时进度回调
-                window._termuxProgressCallbacks[callbackId] = function(partial) {
-                    if (progressEl) {
-                        // 截取最后 8 行显示（避免过长）
-                        var lines = partial.split('\n');
-                        var display = lines.length > 8
-                            ? '...\n' + lines.slice(-8).join('\n')
-                            : partial;
-                        progressEl.innerHTML = '⎿ <span style="color:#10b981">▶</span> <pre style="margin:0;font-size:11px;white-space:pre-wrap;font-family:monospace;">' + escapeHtml(display) + '</pre>';
-                        progressEl.scrollTop = progressEl.scrollHeight;
-                    }
-                };
 
                 // 每 200ms 检查 abort，如果用户点击了停止生成则通知 Java 层取消 Termux 命令
                 let termuxAborted = false;
@@ -2855,7 +2823,6 @@ async function executeToolCall(tc) {
                         if (termuxAborted) return;
                         termuxAborted = true;
                         clearInterval(abortChecker);
-                        // 通知 Java 层取消正在执行的 Termux 命令
                         try {
                             window.AndroidBridge.cancelTermuxCommand(callbackId);
                         } catch (e) {
@@ -2869,8 +2836,6 @@ async function executeToolCall(tc) {
                 });
 
                 clearInterval(abortChecker);
-                // 清理进度回调
-                delete window._termuxProgressCallbacks[callbackId];
                 if (termuxAborted) {
                     return '⏹️ 用户已停止生成，Termux 命令已取消。';
                 }

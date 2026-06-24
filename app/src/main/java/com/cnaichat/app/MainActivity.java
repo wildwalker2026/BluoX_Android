@@ -3097,37 +3097,8 @@ public class MainActivity extends Activity {
                 }
                 String callbackId = "termux_" + System.currentTimeMillis();
                 termuxBridge.executeAsync(command, workDir, callbackId,
-                        webView, MainActivity.this, true, timeoutSec);
+                        webView, MainActivity.this, timeoutSec);
                 return callbackId;
-            }
-
-            /**
-             * 异步执行 Termux 命令，结果通过 window._onTermuxResult(callbackId, result) 回调
-             * @param command    要执行的命令
-             * @param workDir    工作目录（可选）
-             * @param callbackId JS 回调 ID
-             * @param background 是否后台执行（后台才能拿到 stdout）
-             */
-            @JavascriptInterface
-            public void runTermuxCommandAsync(String command, String workDir, String callbackId, boolean background) {
-                if (termuxBridge == null) {
-                    termuxBridge = new TermuxBridge(MainActivity.this);
-                }
-                termuxBridge.executeAsync(command, workDir, callbackId, webView, MainActivity.this, background);
-            }
-
-            /**
-             * 在 Termux 前台执行命令（打开 Termux 界面）
-             * @param command 要执行的命令
-             * @param workDir 工作目录（可选）
-             * @return JSON 结果
-             */
-            @JavascriptInterface
-            public String runTermuxForeground(String command, String workDir) {
-                if (termuxBridge == null) {
-                    termuxBridge = new TermuxBridge(MainActivity.this);
-                }
-                return termuxBridge.executeForeground(command, workDir);
             }
 
             /**

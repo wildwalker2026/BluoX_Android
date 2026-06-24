@@ -116,9 +116,5 @@
                 android:resource="@xml/cnai_file_paths" />
         </provider>
 
-        <!-- Termux RUN_COMMAND 结果接收器 -->
-        <receiver
-            android:name=".TermuxResultReceiver"
-            android:exported="false" />
     </application>
 </manifest>

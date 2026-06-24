@@ -10864,7 +10864,7 @@ function buildRequestBody(systemPrompt = null, targetMessage = null, knowledgeCo
         systemContent += `\n\n## 笔记本\n笔记存储在 ${downloadsPath}/Bluox/Notes 目录中。用户可以通过笔记本功能记录信息，你也可以通过工具读写笔记。`;
         systemContent += '\n\n## 数学计算工具\n你可以使用 math_calculate 工具进行精确数学计算。支持：四则运算、三角函数、求导（derivative）、方程求解（solve）、定积分（integrate）、矩阵运算、行列式（det）、统计、单位换算、复数运算等。遇到数学问题时，务必使用此工具确保结果精确。';
         systemContent += '\n\n## 数据可视化工具\n你可以使用 generate_chart 工具生成数据可视化图表。传入 ECharts option 配置即可生成折线图、柱状图、饼图、散点图、雷达图、热力图等。工具会返回 chartId，你需要在回复文本中用 [chart:chartId] 嵌入图表，图表会直接展示给用户。';
-        systemContent += '\n\n## 重要限制\n- write_file 的 content 参数最多300行，超过300行的文件必须拆分为多次写入，或先 write_file 创建空文件再用 edit_file 分批追加。';
+        
     }
 
     const apiMessages = [];
