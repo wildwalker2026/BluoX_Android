@@ -2514,8 +2514,10 @@ async function executeToolCall(tc) {
             if (cmd.includes(danger)) return 'confirm';
         }
 
-        // 检查白名单
+        // 检查白名单（单词匹配）
         if (SAFE_COMMAND_PREFIXES.includes(cmdName)) return 'safe';
+        // 检查白名单（多词匹配，如 'git diff'、'git status'）
+        if (SAFE_COMMAND_PREFIXES.some(p => p.includes(' ') && (cmd === p || cmd.startsWith(p + ' ')))) return 'safe';
 
         // 未知命令 → 需确认
         return 'confirm';
