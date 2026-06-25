@@ -13203,6 +13203,9 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
     // 流式输出期间定时滚动
     startStreamScroll();
 
+    // 生成期间保持屏幕常亮
+    requestKeepScreenOn();
+
     currentAiContent = '';
     currentThinkingContent = '';
     currentAnnotations = null;
@@ -13229,6 +13232,14 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
                 if (errMsg) {
                     appendToLastMessage(errMsg);
                     saveMessages(messages);
+                    // 释放屏幕常亮（不能直接 return，否则跳过 finally 块）
+                    releaseKeepScreenOn();
+                    isSending = false;
+                    sendBtn.disabled = false;
+                    stopBtn.style.display = 'none';
+                    messageInput.placeholder = '输入消息...';
+                    abortController = null;
+                    stopStreamScroll();
                     return;
                 }
             }
@@ -13348,6 +13359,8 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
 
     // finally 逻辑
     {
+        // 释放屏幕常亮
+        releaseKeepScreenOn();
         isSending = false;
         sendBtn.disabled = false;
         stopBtn.style.display = 'none';  // 隐藏停止按钮
@@ -14799,6 +14812,13 @@ function showConfirmSoundSheet() {
 
 // 生成期间不熄屏
 keepScreenOnSwitch.addEventListener('change', saveKeepScreenOn);
+
+// 页面重新可见时，如果在生成中，重新获取 wakeLock
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isSending && keepScreenOnEnabled) {
+        requestKeepScreenOn();
+    }
+});
 
 confirmSoundSwitch.addEventListener('change', () => {
     localStorage.setItem('cnai_confirm_sound', confirmSoundSwitch.checked);
