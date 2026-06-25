@@ -3,8 +3,6 @@
 > **一台手机，即可 Vibe Coding。**
 > 隐私优先的多平台 AI 助手，支持工具调用、终端集成、跨设备协同。
 
-> ⚠️ **Note:** Currently supports **Simplified Chinese** only.
-
 ---
 
 ## ✨ 核心功能
@@ -83,3 +81,78 @@
 Copyright © 2026 新蓝域（广州）科技有限责任公司. All rights reserved.
 
 本项目为闭源项目，源代码不公开。APK 可免费下载使用。
+
+---
+
+---
+
+# 📦 BluoX AI (English)
+
+> **One phone is all you need for Vibe Coding.**
+> A privacy-first multi-platform AI assistant with tool calling, terminal integration, and cross-device collaboration.
+
+> ⚠️ **Note:** This app currently supports **Simplified Chinese UI only**. English localization is on the roadmap.
+
+---
+
+## ✨ Key Features
+
+| Feature | Description |
+|---------|-------------|
+| 🤖 **Multi-Model Support** | Qwen, DeepSeek, Doubao, Zhipu, MiniMax, Kimi and more |
+| 🛠️ **AI Tool Calling** | File read/write, code editing, web search — AI handles complex tasks autonomously, with confirmation cards for sensitive operations |
+| 💻 **Terminal Integration** | Works with Termux — AI can execute commands, compile projects, and install APKs on your phone |
+| 🔒 **Privacy First** | 100% local storage, zero upload — your conversations belong only to you |
+| 📚 **Local Knowledge Base** | Upload documents to build a private knowledge base with offline retrieval |
+| 📱 **Cross-Device** | Connect phone to PC — AI directly edits files, runs commands, and transfers files |
+| 🎨 **Multi-Agent** | Create multiple AI roles with independent models, prompts, and tools |
+| 🖼️ **Image Recognition** | Send images to AI for visual understanding |
+| 🌙 **Theming** | Auto light/dark mode with multiple background themes |
+
+---
+
+## 📥 Download
+
+### Android
+- **Requirement**: Android 8.0+ (API 26)
+- **Get it**: [Latest Release](../../releases/latest)
+
+### Windows
+- Search **BluoX_PC** for the Windows client
+
+---
+
+## 🚀 Quick Start
+
+1. **Download & install** the APK
+2. **Configure API Key**: Open app → Settings → Select AI platform → Enter API Key
+3. **Start chatting**: Talk to AI, or let it handle files and search the web
+4. **Advanced** (optional):
+   - Install **Termux** to unlock terminal capabilities
+   - Connect to PC for cross-device collaboration
+
+---
+
+## 🔧 Tech Stack
+
+- **Frontend**: HTML/CSS/JavaScript (WebView)
+- **Native**: Java (Android)
+- **Terminal**: Termux RUN_COMMAND
+- **Storage**: IndexedDB + SQLite (fully local)
+- **No backend**: Connects directly to AI platform APIs
+
+---
+
+## 📞 Contact
+
+- 🌐 Website: [xiaolanbox.com](https://www.xiaolanbox.com)
+- 💬 QQ Group: 284957094
+- 📕 Xiaohongshu: [@小蓝AI盒子](https://www.xiaohongshu.com/user/profile/615d7a1c0000000002018733)
+
+---
+
+## 📄 License
+
+Copyright © 2026 新蓝域（广州）科技有限责任公司. All rights reserved.
+
+This is a closed-source project. The APK is free to download and use.
