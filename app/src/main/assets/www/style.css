@@ -8737,7 +8737,7 @@ body.dark-theme .phone-tool-call {
     background-color: var(--surface-color);
 }
 .diff-card.expanded { min-height: auto; }
-.diff-card .confirm-diff-body { max-height: none; }
+.diff-card .confirm-diff-body { max-height: none; border: none; }
 .diff-card .diff-header { min-height: 36px; }
 .diff-header {
     display: flex;
@@ -8841,6 +8841,13 @@ body.dark-theme .diff-line.del .diff-code { color: #ef9a9a; }
     font-weight: 600;
     margin-bottom: 6px;
     color: var(--text-primary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.confirm-diff-stats {
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
 }
 .confirm-desc {
     font-family: 'Consolas', monospace;
@@ -8888,6 +8895,7 @@ body.dark-theme .diff-line.del .diff-code { color: #ef9a9a; }
     padding: 6px 0;
     margin: 6px 0;
     border-top: 1px solid #555;
+    min-width: fit-content;
 }
 .confirm-status { color: #888; font-style: italic; }
 .confirm-rejected { color: #c62828; }

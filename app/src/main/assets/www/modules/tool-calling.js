@@ -1181,7 +1181,12 @@ function executeEditFile(path, edits, planLog, confirmed) {
             if (secondIdx !== -1 && secondIdx < searchEnd) {
                 return { error: `找到多处匹配，请用 start_line/end_line 缩小范围: "${old_text.slice(0, 80)}"` };
             }
-            return { idx, oldLen: old_text.length, new_text: (edit.new_text || '').replace(/\r\n/g, '\n') };
+            const finalNewText = (edit.new_text || '').replace(/\r\n/g, '\n');
+            const normalizedOld = old_text.replace(/\r\n/g, '\n');
+            if (normalizedOld === finalNewText) {
+                return { error: '空操作：old_text 和 new_text 完全相同，没有实际修改。请检查参数，确保 new_text 与 old_text 有差异。' };
+            }
+            return { idx, oldLen: old_text.length, new_text: finalNewText };
         }
 
         // ========== 3. 预检查所有 edits ==========
@@ -1597,12 +1602,17 @@ function showConfirmCard(tc, toolArgs, confirmInfo, chatContainer, onConfirm) {
     return new Promise((resolve) => {
         const card = document.createElement('div');
         card.className = 'confirm-card';
-        const desc = `${confirmInfo.action}: ${confirmInfo.target}`;
+        const stats = confirmInfo.diffData?.stats || {};
+        const added = stats.added ?? 0;
+        const removed = stats.removed ?? 0;
+        const desc = `${escapeHtml(confirmInfo.action)}: ${escapeHtml(confirmInfo.target)}`;
         const diffHtml = buildDiffHtml(confirmInfo.diffData);
-        const stats = confirmInfo.diffData?.stats || { added: 0, removed: 0 };
         card.innerHTML = `
-            <div class="confirm-title">AI 请求执行操作</div>
-            <div class="confirm-desc">${escapeHtml(desc)}</div>
+            <div class="confirm-title">
+                <span>AI 请求执行操作</span>
+                <span class="confirm-diff-stats"><span class="diff-add">+${added}</span> <span class="diff-del">-${removed}</span></span>
+            </div>
+            <div class="confirm-desc">${desc}</div>
             ${diffHtml}
             <div class="bs-btn-row">
                 <button class="secondary-btn confirm-reject">拒绝</button>
