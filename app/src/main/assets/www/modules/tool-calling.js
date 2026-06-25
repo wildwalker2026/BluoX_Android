@@ -1531,13 +1531,13 @@ function showConfirmCard(tc, toolArgs, confirmInfo, chatContainer, onConfirm) {
 /**
  * 简单确认卡片（无 diff），返回 Promise<string>
  */
-function showSimpleConfirm(action, target, chatContainer, onConfirm) {
+function showSimpleConfirm(action, target, chatContainer, onConfirm, title) {
     return new Promise((resolve) => {
         const card = document.createElement('div');
         card.className = 'confirm-card';
         const desc = `${action}: ${target}`;
         card.innerHTML = `
-            <div class="confirm-title">⚠️ AI 请求在电脑端执行操作</div>
+            <div class="confirm-title">⚠️ ${title || 'AI 请求执行操作'}</div>
             <div class="confirm-desc">${escapeHtml(desc)}</div>
             <div class="confirm-actions">
                 <button class="confirm-btn confirm-allow">✅ 允许执行</button>
@@ -2675,7 +2675,8 @@ async function executeToolCall(tc) {
                         async () => {
                             const raw = await executeLocalCommandAsync(cmdArgs.command, timeoutSec);
                             return formatLocalCommandResult(raw);
-                        }
+                        },
+                        'AI 请求执行操作'
                     );
                 }
                 // safe：白名单命令直接异步执行
@@ -2774,7 +2775,8 @@ async function executeToolCall(tc) {
                     '在 Termux 中执行',
                     command,
                     chatContainerEl,
-                    doExecute
+                    doExecute,
+                    'AI 请求在 Termux 中执行操作'
                 );
             }
 
@@ -2900,7 +2902,8 @@ async function executeToolOnPC(toolName, args) {
             chatContainer,
             async () => {
                 return await callPCTool(toolName, { ...cleanArgs, _confirmed: true });
-            }
+            },
+            'AI 请求在电脑端执行操作'
         );
     }
 }
