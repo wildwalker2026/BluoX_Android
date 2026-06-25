@@ -26,7 +26,7 @@
 ## 📥 下载安装
 
 ### Android
-- **最低要求**：Android 7.0 (API 24)
+- **最低要求**：Android 8.0 (API 26)
 - **下载地址**：[最新版本 Release](../../releases/latest)
 
 ### Windows
