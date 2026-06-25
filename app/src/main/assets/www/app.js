@@ -1897,7 +1897,7 @@ function saveMessages(msgs) {
         return msg;
     });
 
-    saveMessagesToDB(getTopicMessagesKey(), processedMsgs);
+    return saveMessagesToDB(getTopicMessagesKey(), processedMsgs);
 }
 
 // 渲染消息列表到聊天容器（公共函数）- 分批渲染技术（从下往上，每批 10 条）
@@ -4392,7 +4392,7 @@ async function switchAgentAndTopic(agentId, topicId, onClose, onComplete, option
     const _topicOverlayShowTime = Date.now();
     topicLoadingOverlay.classList.add('active');
     // 保存当前消息
-    saveMessages(messages);
+    await saveMessages(messages);
 
     // 保存当前智能体的话题选择
     currentTopicByAgent[currentAgentId] = currentTopicId;
@@ -5041,9 +5041,9 @@ function createNewTopicForAgent(agentId) {
     switchAgentAndTopic(agentId, newTopic.id, () => {
         closeAgentSelectModal();
         closeTopicDrawer();
-    }, () => {
+    }, async () => {
         // 切换完成后保存空消息（防止显示独白）
-        saveMessages([]);
+        await saveMessages([]);
         showWelcomeMessage();
         showToast('新增话题');
     });
@@ -7413,7 +7413,7 @@ function updateVersionSwitcher(messageDiv, messageData) {
 }
 
 // 切换消息版本
-function switchMessageVersion(messageDiv, direction) {
+async function switchMessageVersion(messageDiv, direction) {
     // 内容生成中时不允许切换版本
     if (isSending) {
         showToast('内容正在生成中，请稍候');
@@ -7521,7 +7521,7 @@ function switchMessageVersion(messageDiv, direction) {
     chainVersionSwitch(messageIndex, version.timestamp);
 
     // 保存消息
-    saveMessages(messages);
+    await saveMessages(messages);
 }
 
 // 链式版本切换：当消息A切换版本时，后续消息根据 prevId 显示/隐藏
@@ -8784,6 +8784,17 @@ function isUserAtBottomForBtn() {
 })();
 
 
+// 重新渲染消息内容时保留思考内容（避免 innerHTML 清除 thinking-content）
+function renderContentPreservingThinking(messageContent, content) {
+    if (!messageContent) return;
+    const thinkingDiv = messageContent.querySelector('.thinking-content');
+    messageContent.innerHTML = formatMessage(content);
+    messageContent.dataset.content = content;
+    if (thinkingDiv) {
+        messageContent.insertBefore(thinkingDiv, messageContent.firstChild);
+    }
+}
+
 // 更新思考内容（流式）
 function updateThinking(content) {
     if (!currentAiMessageDiv) return;
@@ -8835,12 +8846,7 @@ function updateThinking(content) {
       _streamingRenderDirty = false;
       const messageContent = currentAiMessageDiv.querySelector('.message-content');
       if (messageContent) {
-          const thinkingDiv = messageContent.querySelector('.thinking-content');
-          messageContent.innerHTML = formatMessage(currentAiContent);
-          messageContent.dataset.content = currentAiContent;
-          if (thinkingDiv) {
-              messageContent.insertBefore(thinkingDiv, messageContent.firstChild);
-          }
+          renderContentPreservingThinking(messageContent, currentAiContent);
           // 流式滚动已由 startStreamScroll 独立定时器处理
       }
   }
@@ -8935,13 +8941,8 @@ function streamTypewriterTick() {
         const messageContent = targetDiv.querySelector('.message-content');
         if (messageContent) {
             // ===== 每次 tick 都全量 formatMessage 渲染 =====
-            const thinkingDiv = messageContent.querySelector('.thinking-content');
             const displayContent = currentAiContent.slice(0, _streamMainLen);
-            messageContent.innerHTML = formatMessage(displayContent);
-            messageContent.dataset.content = displayContent;
-            if (thinkingDiv) {
-                messageContent.insertBefore(thinkingDiv, messageContent.firstChild);
-            }
+            renderContentPreservingThinking(messageContent, displayContent);
             _streamLastRenderedLen = _streamMainLen;
         }
         didWork = true;
@@ -8979,12 +8980,7 @@ function flushStreamTypewriter() {
     }
     const messageContent = currentAiMessageDiv.querySelector('.message-content');
     if (messageContent) {
-        const thinkingDiv2 = messageContent.querySelector('.thinking-content');
-        messageContent.innerHTML = formatMessage(currentAiContent);
-        messageContent.dataset.content = currentAiContent;
-        if (thinkingDiv2) {
-            messageContent.insertBefore(thinkingDiv2, messageContent.firstChild);
-        }
+        renderContentPreservingThinking(messageContent, currentAiContent);
     }
 }
 
@@ -11900,7 +11896,7 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
                         delete msg._previousResponseId;
                     }
                 });
-                saveMessages(messages);
+                await saveMessages(messages);
                 // 设置强制首次发送标志（豆包+千问）
                 forceFirstSend = 1;
                 localStorage.setItem('doubao_force_first_send', '1');
@@ -11983,7 +11979,7 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
                                         delete msg._previousResponseId;
                                     }
                                 });
-                                saveMessages(messages);
+                                await saveMessages(messages);
                                 forceFirstSend = 1;
                                 localStorage.setItem('doubao_force_first_send', '1');
                                 qwenForceFirstSend = 1;
@@ -12004,7 +12000,7 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
                                         delete msg._previousResponseId;
                                     }
                                 });
-                                saveMessages(messages);
+                                await saveMessages(messages);
                                 forceFirstSend = 1;
                                 localStorage.setItem('doubao_force_first_send', '1');
                                 qwenForceFirstSend = 1;
@@ -12396,7 +12392,7 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
         if (infoTrigger) infoTrigger.style.display = 'none';
     }
 
-    saveMessages(messages);
+    await saveMessages(messages);
     updateCacheOptimizeCount();
 
     // 将 usageInfo 保存到话题级别，供下次加载时恢复
@@ -12722,12 +12718,11 @@ async function sendToPCChat(messageContent, displayContent, now) {
     let _pcCurrentToolId = null;  // 当前工具调用消息 ID
 
     // 辅助：保存当前文字气泡到 messages 数组
-    function _pcSaveCurrentTextBubble() {
+    async function _pcSaveCurrentTextBubble() {
         if (currentAiMessageDiv && currentAiContent.trim()) {
             const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
             messages.push(createAssistantMessage(currentAiContent.trim(), null, null, null, lastUserMsg ? lastUserMsg.id : null));
-            saveMessages(messages);
-            currentAiMessageDiv = null;
+            await saveMessages(messages);
             currentAiMessageId = null;
             currentAiContent = '';
         }
@@ -12740,7 +12735,7 @@ async function sendToPCChat(messageContent, displayContent, now) {
         currentAiMessageDiv = appendMessage('assistant', '', true, false, Date.now(), selectedModel, null, 0, null, null, null, currentAiMessageId);
     }
 
-    pcConnection._handleMessage = function(msg) {
+    pcConnection._handleMessage = async function(msg) {
         if (msg.type === 'chat_chunk' && msg.id === chatId) {
             // 如果当前没有文字气泡，创建一个新的
             if (!currentAiMessageDiv) {
@@ -12780,7 +12775,7 @@ async function sendToPCChat(messageContent, displayContent, now) {
                 timestamp: Date.now(),
                 prevId: lastMsg ? lastMsg.id : null
             });
-            saveMessages(messages);
+            await saveMessages(messages);
             scrollToBottom();
         } else if (msg.type === 'chat_tool_result' && msg.id === chatId) {
             // 工具执行结果 - 更新工具气泡内容
@@ -12823,7 +12818,7 @@ async function sendToPCChat(messageContent, displayContent, now) {
                     toolMsg.content = summary;
                     toolMsg.diffHtml = msg.diffHtml || null;
                     toolMsg.diffMeta = msg.diffMeta || null;
-                    saveMessages(messages);
+                    await saveMessages(messages);
                 }
             }
             _pcCurrentToolDiv = null;
@@ -12905,7 +12900,7 @@ async function sendToPCChat(messageContent, displayContent, now) {
             // 保存最终文字到 messages
             const lastMsgForPc = [...messages].reverse().find(m => m.role === 'user' || m.role === 'assistant');
             messages.push(createAssistantMessage(finalText, null, null, null, lastMsgForPc ? lastMsgForPc.id : null));
-            saveMessages(messages);
+            await saveMessages(messages);
             // 确保当前话题标记为有内容（避免异步写入未完成导致检测不到）
             const pcTopic = agentTopics[currentAgentId]?.find(t => t.id === currentTopicId);
             if (pcTopic && !pcTopic.hasContent) {
@@ -12933,7 +12928,7 @@ async function sendToPCChat(messageContent, displayContent, now) {
             }
             const lastUserMsgForPcErr = [...messages].reverse().find(m => m.role === 'user');
             messages.push(createAssistantMessage(errorContent, null, null, null, lastUserMsgForPcErr ? lastUserMsgForPcErr.id : null));
-            saveMessages(messages);
+            await saveMessages(messages);
             // 确保当前话题标记为有内容（避免异步写入未完成导致检测不到）
             const pcTopic = agentTopics[currentAgentId]?.find(t => t.id === currentTopicId);
             if (pcTopic && !pcTopic.hasContent) {
@@ -13130,7 +13125,7 @@ async function sendMessage() {
         const topics = agentTopics[currentAgentId];
         const currentTopic = topics ? topics.find(t => t.id === currentTopicId) : null;
         if (currentTopic && currentTopic.isUserCreated === false) {
-            saveMessages(messages);
+            await saveMessages(messages);
         }
     }
 
@@ -13276,7 +13271,7 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
                 const errMsg = checkToolCallingPrerequisites();
                 if (errMsg) {
                     appendToLastMessage(errMsg);
-                    saveMessages(messages);
+                    await saveMessages(messages);
                     // 释放屏幕常亮（不能直接 return，否则跳过 finally 块）
                     releaseKeepScreenOn();
                     isSending = false;
@@ -13371,13 +13366,12 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
             if (aiBubble) {
                 const messageContent = aiBubble.querySelector('.message-content');
                 if (messageContent) {
-                    messageContent.innerHTML = formatMessage(versionContent);
-                    messageContent.dataset.content = versionContent;
+                    renderContentPreservingThinking(messageContent, versionContent);
                 }
                 updateVersionSwitcher(aiBubble, targetMessage);
             }
 
-            saveMessages(messages);
+            await saveMessages(messages);
         } else {
             // 普通发送场景（非刷新/重发）的错误处理
             // 将停止/错误提示写入当前 AI 气泡，不新增气泡
@@ -13392,13 +13386,12 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
             if (aiBubble) {
                 const messageContent = aiBubble.querySelector('.message-content');
                 if (messageContent) {
-                    messageContent.innerHTML = formatMessage(finalContent);
-                    messageContent.dataset.content = finalContent;
+                    renderContentPreservingThinking(messageContent, finalContent);
                 }
             }
 
             messages.push(partialMsg);
-            saveMessages(messages);
+            await saveMessages(messages);
         }
     } // end if (error)
 
@@ -13598,7 +13591,7 @@ async function deleteMessage(messageDiv, index) {
             }
         }
 
-        saveMessages(messages);
+        await saveMessages(messages);
         showToast('已删除该版本');
 
         // 级联删除：找到所有 prevId 指向被删版本 id 的后续消息
@@ -14055,7 +14048,7 @@ function editMessage(messageDiv, index) {
         value: currentContent,
         inputType: 'textarea',
         confirmText: '保存',
-        onConfirm: (newContent) => {
+        onConfirm: async (newContent) => {
             newContent = newContent.trim();
             if (!newContent) {
                 alert('消息内容不能为空');
@@ -14065,12 +14058,7 @@ function editMessage(messageDiv, index) {
                 return;
             }
 
-            messageContent.dataset.content = newContent;
-            messageContent.innerHTML = formatMessage(newContent);
-
-            if (thinkingDiv) {
-                messageContent.insertBefore(thinkingDiv, messageContent.firstChild);
-            }
+            renderContentPreservingThinking(messageContent, newContent);
 
             const msg = messages[actualIndex];
             msg.content = newContent;
@@ -14123,7 +14111,7 @@ function editMessage(messageDiv, index) {
                 }
             }
 
-            saveMessages(messages);
+            await saveMessages(messages);
             if (actionsDiv) actionsDiv.style.display = 'flex';
             updateResendButtons();
             showToast('已保存');
@@ -17632,7 +17620,7 @@ async function importChatData(data) {
             newMessages[0].prevId = lastMsg.id;
         }
         messages = [...messages, ...newMessages];
-        saveMessages(messages);
+        await saveMessages(messages);
 
         // 直接重新加载当前话题（替代手动渲染和按钮更新）
         switchAgentAndTopic(currentAgentId, currentTopicId);
