@@ -2078,7 +2078,7 @@ body.dark-theme .agent-tag.active {
     height: 35px;
     border-radius: 50%;
     background-color: transparent;
-    border: 1px solid var(--primary-color);
+    border: 1px solid var(--text-secondary);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -2168,7 +2168,7 @@ body.dark-theme .agent-tag.active {
 }
 
 .chat-menu-btn svg {
-    fill: var(--primary-color);
+    fill: var(--text-secondary);
     width: 20px;      /* 添加宽度 */
     height: 20px;     /* 添加高度 */
 }
