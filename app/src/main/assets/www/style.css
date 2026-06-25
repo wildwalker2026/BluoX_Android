@@ -1731,6 +1731,9 @@ body.dark-theme .version-switcher {
     margin-top: 8px;
     justify-content: space-between;
 }
+.message-edit-buttons > button {
+    flex: 1;
+}
 
 .edit-save-btn,
 .edit-cancel-btn {
@@ -8651,10 +8654,18 @@ body.dark-theme .phone-tool-call .tool-args {
 .phone-confirm-card {
     margin: 8px 0;
     padding: 12px;
-    background: var(--ai-msg-bg, #f3f4f6);
+    background: var(--ai-msg-bg);
     border-radius: 8px;
-    border-left: 3px solid #ff9800;
+    border-left: 3px solid var(--primary-color);
     animation: phoneConfirmSlideIn 0.3s ease;
+}
+.phone-confirm-card .bs-btn-row {
+    padding: 0;
+}
+.phone-confirm-card .bs-confirm-btn,
+.phone-confirm-card .bs-btn-row .secondary-btn {
+    padding: 6px 16px;
+    font-size: 13px;
 }
 
 @keyframes phoneConfirmSlideIn {
@@ -8682,53 +8693,12 @@ body.dark-theme .phone-tool-call .tool-args {
     word-break: break-all;
     line-height: 1.5;
     padding: 6px 8px;
-    background: rgba(0,0,0,0.04);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     font-family: monospace;
 }
 
-body.dark-theme .phone-confirm-card .confirm-desc {
-    background: rgba(255,255,255,0.06);
-}
 
-.phone-confirm-card .confirm-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.phone-confirm-card .confirm-actions button {
-    flex: 1;
-    padding: 8px 12px;
-    border: none;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-}
-
-.phone-confirm-card .confirm-actions button:active {
-    transform: scale(0.96);
-}
-
-.phone-confirm-allow {
-    background: #4CAF50;
-    color: white;
-}
-
-.phone-confirm-allow:active {
-    background: #43A047;
-}
-
-.phone-confirm-reject {
-    background: #f44336;
-    color: white;
-}
-
-.phone-confirm-reject:active {
-    background: #e53935;
-}
 
 /* 确认后的状态显示 */
 .phone-confirm-card .confirm-status {
@@ -8851,23 +8821,31 @@ body.dark-theme .diff-line.del .diff-code { color: #ef9a9a; }
 .confirm-card {
     margin: 8px 0;
     padding: 12px 16px;
-    border: 1px solid #ff9800;
+    border: 1px solid var(--border-color);
     border-radius: 10px;
-    background: #fff8e1;
+    background: var(--ai-msg-bg);
     font-size: 13px;
     display: block;
     width: 100%;
     flex-shrink: 0;
 }
+.confirm-card .bs-btn-row {
+    padding: 0;
+}
+.confirm-card .bs-confirm-btn,
+.confirm-card .bs-btn-row .secondary-btn {
+    padding: 6px 16px;
+    font-size: 13px;
+}
 .confirm-title {
     font-weight: 600;
     margin-bottom: 6px;
-    color: #e65100;
+    color: var(--text-primary);
 }
 .confirm-desc {
     font-family: 'Consolas', monospace;
     padding: 6px 10px;
-    background: rgba(0,0,0,0.04);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     margin-bottom: 8px;
     word-break: break-all;
@@ -8911,39 +8889,12 @@ body.dark-theme .diff-line.del .diff-code { color: #ef9a9a; }
     margin: 6px 0;
     border-top: 1px solid #555;
 }
-.confirm-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.confirm-btn {
-    padding: 6px 16px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    transition: background 0.2s;
-}
-.confirm-allow {
-    background: #4caf50;
-    color: white;
-}
-.confirm-allow:hover { background: #388e3c; }
-.confirm-reject {
-    background: #f5f5f5;
-    color: #333;
-    border: 1px solid #ddd;
-}
-.confirm-reject:hover { background: #e0e0e0; }
 .confirm-status { color: #888; font-style: italic; }
 .confirm-rejected { color: #c62828; }
 .confirm-done { opacity: 0.7; }
-.confirm-done .confirm-btn { pointer-events: none; }
+.confirm-done .confirm-allow, .confirm-done .confirm-reject { pointer-events: none; }
 
-body.dark-theme .confirm-card { background: #3e2e00; border-color: #ff9800; }
-body.dark-theme .confirm-desc { background: rgba(255,255,255,0.08); color: #ccc; }
-body.dark-theme .confirm-reject { background: #333; color: #ccc; border-color: #555; }
+
 
 /* ==================== 通用底部弹出选择器 (Bottom Sheet Picker) ==================== */
 /*

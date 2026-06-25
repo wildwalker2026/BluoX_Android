@@ -691,10 +691,12 @@ function initMessageDB() {
                 const allData = store.getAll();
                 allData.onsuccess = () => {
                     (allData.result || []).forEach(item => {
-                        _messageExistsCache.add(item.key);
+                        // 只缓存有实际消息内容的记录，空数组不算有内容
                         if (item.messages && Array.isArray(item.messages)) {
+                            if (item.messages.length > 0) {
+                                _messageExistsCache.add(item.key);
+                            }
                             _messageRoundCache[item.key] = item.messages.filter(m => m.role === 'user').length;
-                            // 缓存最后一条消息的时间戳
                             const lastMsg = item.messages[item.messages.length - 1];
                             if (lastMsg && lastMsg.timestamp) {
                                 _messageLastTimeCache[item.key] = lastMsg.timestamp;
@@ -871,7 +873,10 @@ function migrateMessagesFromLocalStorage() {
                         const tx = messageDB.transaction([MESSAGE_STORE_NAME], 'readwrite');
                         const store = tx.objectStore(MESSAGE_STORE_NAME);
                         store.put({ key, messages });
-                        _messageExistsCache.add(key);
+                        // 只缓存非空消息
+                        if (messages.length > 0) {
+                            _messageExistsCache.add(key);
+                        }
                         _messageRoundCache[key] = messages.filter(m => m.role === 'user').length;
                         const lastMsg = messages[messages.length - 1];
                         if (lastMsg && lastMsg.timestamp) {
@@ -1746,7 +1751,10 @@ function initTopicsContentStatus() {
 function cleanupEmptyNewTopics() {
     let cleaned = false;
 
-    // 遍历所有智能体的话题
+    // 1. 先清理 IndexedDB 中所有空消息记录（messages 为空数组的记录）
+    cleanupEmptyMessagesInDB();
+
+    // 2. 遍历所有智能体的话题，删除无内容的新话题
     Object.keys(agentTopics).forEach(agentId => {
         const topics = agentTopics[agentId];
         if (!topics) return;
@@ -1781,6 +1789,33 @@ function cleanupEmptyNewTopics() {
     if (cleaned) {
         saveAgentTopics();
         console.log('[话题清理] 已清理无内容的新话题');
+    }
+}
+
+// 清理 IndexedDB 中空消息记录（messages 为空数组的记录）
+async function cleanupEmptyMessagesInDB() {
+    if (!messageDB) return;
+    try {
+        const tx = messageDB.transaction([MESSAGE_STORE_NAME], 'readwrite');
+        const store = tx.objectStore(MESSAGE_STORE_NAME);
+        const allData = store.getAll();
+        allData.onsuccess = () => {
+            let deletedCount = 0;
+            (allData.result || []).forEach(item => {
+                if (!item.messages || !Array.isArray(item.messages) || item.messages.length === 0) {
+                    const deleteTx = messageDB.transaction([MESSAGE_STORE_NAME], 'readwrite');
+                    const deleteStore = deleteTx.objectStore(MESSAGE_STORE_NAME);
+                    deleteStore.delete(item.key);
+                    _messageExistsCache.delete(item.key);
+                    deletedCount++;
+                }
+            });
+            if (deletedCount > 0) {
+                console.log('[话题清理] 已清理空消息记录:', deletedCount, '条');
+            }
+        };
+    } catch (e) {
+        console.warn('[话题清理] 清理空消息记录失败:', e);
     }
 }
 
@@ -12803,12 +12838,12 @@ async function sendToPCChat(messageContent, displayContent, now) {
                     ` : '';
                     const confirmHtml = `
                         <div class="phone-confirm-card">
-                            <div class="confirm-title">⚠️ AI 请求执行操作</div>
+                            <div class="confirm-title">AI 请求执行操作</div>
                             <div class="confirm-desc">${escapeHtml(msg.desc || '')}</div>
                             ${diffPreviewHtml}
-                            <div class="confirm-actions">
-                                <button class="phone-confirm-allow">✅ 允许执行</button>
-                                <button class="phone-confirm-reject">❌ 拒绝</button>
+                            <div class="bs-btn-row">
+                                <button class="secondary-btn phone-confirm-reject">拒绝</button>
+                                <button class="bs-confirm-btn phone-confirm-allow">允许执行</button>
                             </div>
                         </div>
                     `;
@@ -12828,7 +12863,7 @@ async function sendToPCChat(messageContent, displayContent, now) {
                         const card = contentEl.querySelector('.phone-confirm-card');
                         if (card) {
                             const statusClass = confirmed ? 'allowed' : 'rejected';
-                            const statusText = confirmed ? '✅ 已允许执行' : '❌ 已拒绝';
+                            const statusText = confirmed ? '已允许执行' : '已拒绝';
                             card.innerHTML = `<div class="confirm-status ${statusClass}">${statusText}</div>`;
                         }
                         // 发送回复到电脑端
@@ -13405,7 +13440,7 @@ function stopGenerating() {
     onConfirmCardClose();
     // 自动拒绝所有未处理的确认卡片
     document.querySelectorAll('.phone-confirm-card, .confirm-card').forEach(card => {
-        if (card.querySelector('.confirm-actions')) {
+        if (card.querySelector('.bs-btn-row')) {
             const rejectBtn = card.querySelector('.phone-confirm-reject, .confirm-reject');
             if (rejectBtn) rejectBtn.click();
         }

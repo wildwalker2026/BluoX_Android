@@ -1431,12 +1431,12 @@ function showConfirmCard(tc, toolArgs, confirmInfo, chatContainer, onConfirm) {
         const diffHtml = buildDiffHtml(confirmInfo.diffData);
         const stats = confirmInfo.diffData?.stats || { added: 0, removed: 0 };
         card.innerHTML = `
-            <div class="confirm-title">⚠️ AI 请求执行操作</div>
+            <div class="confirm-title">AI 请求执行操作</div>
             <div class="confirm-desc">${escapeHtml(desc)}</div>
             ${diffHtml}
-            <div class="confirm-actions">
-                <button class="confirm-btn confirm-reject">❌ 拒绝</button>
-                <button class="confirm-btn confirm-allow">✅ 允许执行</button>
+            <div class="bs-btn-row">
+                <button class="secondary-btn confirm-reject">拒绝</button>
+                <button class="bs-confirm-btn confirm-allow">允许执行</button>
             </div>
         `;
         chatContainer.appendChild(card);
@@ -1445,7 +1445,7 @@ function showConfirmCard(tc, toolArgs, confirmInfo, chatContainer, onConfirm) {
 
         card.querySelector('.confirm-allow').addEventListener('click', async () => {
             onConfirmCardClose();
-            const actionsDiv = card.querySelector('.confirm-actions');
+            const actionsDiv = card.querySelector('.bs-btn-row');
             actionsDiv.innerHTML = '<span class="confirm-status">执行中...</span>';
 
             // 如果有外部确认回调（如PC端工具），由回调处理
@@ -1521,7 +1521,7 @@ function showConfirmCard(tc, toolArgs, confirmInfo, chatContainer, onConfirm) {
 
         card.querySelector('.confirm-reject').addEventListener('click', () => {
             onConfirmCardClose();
-            card.querySelector('.confirm-actions').innerHTML = '<span class="confirm-status rejected">已拒绝</span>';
+            card.querySelector('.bs-btn-row').innerHTML = '<span class="confirm-status rejected">已拒绝</span>';
             card.classList.add('confirm-done');
             resolve(JSON.stringify({ error: `用户拒绝执行: ${desc}`, rejected: true }));
         });
@@ -1537,11 +1537,11 @@ function showSimpleConfirm(action, target, chatContainer, onConfirm, title) {
         card.className = 'confirm-card';
         const desc = `${action}: ${target}`;
         card.innerHTML = `
-            <div class="confirm-title">⚠️ ${title || 'AI 请求执行操作'}</div>
+            <div class="confirm-title">${title || 'AI 请求执行操作'}</div>
             <div class="confirm-desc">${escapeHtml(desc)}</div>
-            <div class="confirm-actions">
-                <button class="confirm-btn confirm-reject">❌ 拒绝</button>
-                <button class="confirm-btn confirm-allow">✅ 允许执行</button>
+            <div class="bs-btn-row">
+                <button class="secondary-btn confirm-reject">拒绝</button>
+                <button class="bs-confirm-btn confirm-allow">允许执行</button>
             </div>
         `;
         chatContainer.appendChild(card);
@@ -1550,15 +1550,15 @@ function showSimpleConfirm(action, target, chatContainer, onConfirm, title) {
 
         card.querySelector('.confirm-allow').addEventListener('click', async () => {
             onConfirmCardClose();
-            card.querySelector('.confirm-actions').innerHTML = '<span class="confirm-status">执行中...</span>';
+            card.querySelector('.bs-btn-row').innerHTML = '<span class="confirm-status">执行中...</span>';
             const result = await onConfirm();
-            card.querySelector('.confirm-status').textContent = '✅ 已执行';
+            card.querySelector('.confirm-status').textContent = '已执行';
             resolve(result);
         });
 
         card.querySelector('.confirm-reject').addEventListener('click', () => {
             onConfirmCardClose();
-            card.querySelector('.confirm-actions').innerHTML = '<span class="confirm-status rejected">已拒绝</span>';
+            card.querySelector('.bs-btn-row').innerHTML = '<span class="confirm-status rejected">已拒绝</span>';
             card.classList.add('confirm-done');
             resolve(JSON.stringify({ error: `用户拒绝执行: ${desc}`, rejected: true }));
         });
