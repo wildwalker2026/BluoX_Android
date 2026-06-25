@@ -132,9 +132,6 @@ public class MainActivity extends Activity {
     // Termux 桥接器
     private TermuxBridge termuxBridge;
 
-    // Git 执行器
-    private GitExecutor gitExecutor;
-
     // APK 打包时的 Web 版本号（与 config.xml 保持一致）
     private static final String ASSETS_WEB_VERSION = "1.3.6";
 
@@ -4320,36 +4317,6 @@ public class MainActivity extends Activity {
                     terminalExecutor = new TerminalExecutor(MainActivity.this);
                 }
                 return terminalExecutor.listAvailableCommands();
-            }
-
-            // ========== Git 操作（JGit）==========
-
-            /**
-             * 执行 Git 操作
-             * @param json 操作参数 JSON
-             * @return JSON 结果
-             */
-            @JavascriptInterface
-            public String gitOperation(String json) {
-                if (gitExecutor == null) {
-                    gitExecutor = new GitExecutor();
-                }
-                return gitExecutor.execute(json);
-            }
-
-            @JavascriptInterface
-            public void gitOperationAsync(String json, String callbackId) {
-                if (gitExecutor == null) {
-                    gitExecutor = new GitExecutor();
-                }
-                gitExecutor.executeAsync(json, callbackId, webView, MainActivity.this);
-            }
-
-            @JavascriptInterface
-            public void cancelGitOperation() {
-                if (gitExecutor != null) {
-                    gitExecutor.cancel();
-                }
             }
 
         }, "AndroidBridge");
