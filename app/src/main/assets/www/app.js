@@ -13252,6 +13252,10 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
     currentAnnotations = null;
     resetStreamState();
 
+    // 清理上一轮残留的 tool_calls 缓冲区，防止流式增量 arguments 拼接到旧数据上
+    clearToolCallsBuffer();
+    resetResponsesStreamState();
+
     // 创建 AbortController 用于停止生成
     abortController = new AbortController();
 

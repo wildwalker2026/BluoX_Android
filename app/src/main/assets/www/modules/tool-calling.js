@@ -3755,7 +3755,11 @@ async function processToolCalls(messages, aiMessageDiv) {
                     role: 'assistant',
                     content: result.content || null,
                     reasoning: result.reasoning || null,
+                    // 与首条 assistant 消息保持字段一致，便于消息链重建和 UI 渲染
+                    timestamp: Date.now(),
                     modelName: selectedModel,
+                    responseId: result.responseId || null,
+                    annotations: result.annotations || null,
                     prevId: chainLastId,
                     tool_calls: result.toolCalls.filter(tc => tc && tc.function?.name).map(tc => ({
                         id: tc.id,
