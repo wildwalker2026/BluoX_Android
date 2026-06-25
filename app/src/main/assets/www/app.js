@@ -13447,6 +13447,10 @@ function stopGenerating() {
     });
     if (abortController) {
         abortController.abort();
+        // 立即中止所有正在进行的异步 HTTP 请求，避免无意义的网络等待
+        if (typeof window.__abortAllHttpRequests === 'function') {
+            window.__abortAllHttpRequests();
+        }
         // 注意：不要置为 null！保留已 aborted 的 controller，
         // 让 tool-calling.js 中的 abort 检查能识别到"已停止"状态，
         // 避免 tool 回传后 AI 继续生成。

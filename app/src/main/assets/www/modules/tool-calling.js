@@ -533,29 +533,114 @@ function isToolCallingActive() {
 // ==================== 本地搜索（通过 AndroidBridge） ====================
 
 /**
- * 通过 AndroidBridge 原生 HTTP 获取网页内容
- * @param {string} url - 请求的 URL
- * @returns {string} HTML 内容或错误 JSON
+ * 异步 HTTP 回调注册表
  */
-function nativeHttpGet(url) {
-    // 百度/必应/360用 XMLHttpRequest 同步请求（WebView环境，不会被反爬）
+const _httpCallbackMap = new Map();
+let _httpCallbackCounter = 0;
+
+// 页面卸载时清理所有 pending 请求，避免内存泄漏
+window.addEventListener('pagehide', () => {
+    window.__abortAllHttpRequests();
+});
+
+// XHR 引用列表，支持 abort 时真正取消请求
+const _activeXhrList = [];
+function _removeFromXhrList(xhr) {
+    const idx = _activeXhrList.indexOf(xhr);
+    if (idx >= 0) _activeXhrList.splice(idx, 1);
+}
+
+// 全局回调入口（由 Java evaluateJavascript 调用）
+window.__httpCallback = function(callbackId, result) {
+    const cb = _httpCallbackMap.get(callbackId);
+    if (cb) {
+        _httpCallbackMap.delete(callbackId);
+        cb(result);
+    }
+};
+
+/**
+ * 中止所有正在进行的异步 HTTP 请求（用户点击停止生成时调用）
+ */
+window.__abortAllHttpRequests = function() {
+    // 1. 取消所有原生异步请求（先收集 key 再删除，避免迭代中修改）
+    const ids = [..._httpCallbackMap.keys()];
+    for (const id of ids) {
+        const cb = _httpCallbackMap.get(id);
+        _httpCallbackMap.delete(id);
+        cb('{"error":"aborted"}');
+    }
+    // 2. 取消所有 XHR 请求
+    while (_activeXhrList.length > 0) {
+        const xhr = _activeXhrList.pop();
+        try { xhr.abort(); } catch (e) {}
+    }
+    // 3. 通知 Java 取消所有 OkHttp 请求
+    if (window.AndroidBridge && typeof window.AndroidBridge.cancelAllHttpRequests === 'function') {
+        try { window.AndroidBridge.cancelAllHttpRequests(); } catch (e) {}
+    }
+};
+
+/**
+ * 异步通过 AndroidBridge 原生 HTTP 获取网页内容（不阻塞 JS 线程）
+ * @param {string} url - 请求的 URL
+ * @returns {Promise<string>} HTML 内容或错误 JSON
+ */
+async function nativeHttpGet(url) {
+    // 百度/必应/360用异步 XMLHttpRequest（WebView环境，不会被反爬）
     if (url.includes('baidu.com') || url.includes('bing.com') || url.includes('so.com')) {
         try {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', url, false); // false = 同步
-            xhr.setRequestHeader('User-Agent', navigator.userAgent);
-            xhr.send();
-            if (xhr.status === 200) {
-                return xhr.responseText;
-            }
-            console.log('[ToolCalling] 百度XHR失败:', xhr.status);
+            const xhrResult = await new Promise((resolve) => {
+                const xhr = new XMLHttpRequest();
+                _activeXhrList.push(xhr);
+                xhr.open('GET', url, true); // true = 异步
+                xhr.setRequestHeader('User-Agent', navigator.userAgent);
+                xhr.timeout = 15000;
+                xhr.onload = () => {
+                    _removeFromXhrList(xhr);
+                    if (xhr.status !== 200) return resolve(null);
+                    let text = xhr.responseText || '';
+                    if (text.length > 2 * 1024 * 1024) text = text.slice(0, 2 * 1024 * 1024);
+                    resolve(text);
+                };
+                xhr.onerror = () => { _removeFromXhrList(xhr); resolve(null); };
+                xhr.ontimeout = () => { _removeFromXhrList(xhr); resolve(null); };
+                xhr.onabort = () => { _removeFromXhrList(xhr); resolve(null); };
+                xhr.send();
+            });
+            if (xhrResult) return xhrResult;
+            console.log('[ToolCalling] XHR异步失败，回退原生请求');
         } catch (e) {
-            console.log('[ToolCalling] 百度XHR异常:', e.message);
+            console.log('[ToolCalling] XHR异步异常:', e.message);
         }
-        // 失败则回退到原生请求
+        // 失败则回退到原生异步请求
     }
+
+    // 优先使用异步原生方法
+    if (window.AndroidBridge && typeof window.AndroidBridge.httpGetAsync === 'function') {
+        return new Promise((resolve) => {
+            const callbackId = 'cb_' + (++_httpCallbackCounter);
+            const timer = setTimeout(() => {
+                const cb = _httpCallbackMap.get(callbackId);
+                if (cb) {
+                    _httpCallbackMap.delete(callbackId);
+                    cb('{"error":"timeout"}');
+                }
+            }, 30000); // 30s > Java 侧 10s+15s=25s，避免竞态
+            _httpCallbackMap.set(callbackId, (result) => {
+                clearTimeout(timer);
+                resolve(result);
+            });
+            window.AndroidBridge.httpGetAsync(url, callbackId);
+        });
+    }
+
+    // 兜底：旧版同步方法（加超时保护，避免永久阻塞）
     if (window.AndroidBridge && typeof window.AndroidBridge.httpGet === 'function') {
-        return window.AndroidBridge.httpGet(url);
+        return await Promise.race([
+            Promise.resolve(window.AndroidBridge.httpGet(url)),
+            new Promise((resolve) => setTimeout(() => resolve('{"error":"fallback_timeout"}'), 25000))
+        ]);
     }
     return null;
 }
@@ -801,6 +886,8 @@ async function executeWebSearch(queries, timeRange, engine) {
         const selectedEngine = engine || 'bing';
 
         for (let qi = 0; qi < queries.length; qi++) {
+            // abort 检查：用户点击停止后不再发起新请求
+            if (abortController && abortController.signal.aborted) break;
             const query = queries[qi];
             // 多个关键词之间间隔5秒，降低被反爬标记的风险
             if (qi > 0) {
@@ -821,7 +908,7 @@ async function executeWebSearch(queries, timeRange, engine) {
             if (selectedEngine === '360') {
                 // 360优先
                 console.log('[ToolCalling] 360搜索:', query, timeRange ? `(${timeRange})` : '');
-                const soHtml = nativeHttpGet(`https://www.so.com/s?q=${encodedQuery}`);
+                const soHtml = await nativeHttpGet(`https://www.so.com/s?q=${encodedQuery}`);
                 
                 if (soHtml && !soHtml.startsWith('{"error"')) {
                     results = parse360Results(soHtml);
@@ -830,8 +917,9 @@ async function executeWebSearch(queries, timeRange, engine) {
 
                 // 360失败，回退必应
                 if (results.length === 0) {
+                    if (abortController && abortController.signal.aborted) break;
                     console.log('[ToolCalling] 360无结果，尝试必应搜索');
-                    const bingHtml = nativeHttpGet(`https://cn.bing.com/search?q=${encodedQuery}${bingTimeParam}`);
+                    const bingHtml = await nativeHttpGet(`https://cn.bing.com/search?q=${encodedQuery}${bingTimeParam}`);
                     
                     if (bingHtml && !bingHtml.startsWith('{"error"')) {
                         results = parseBingResults(bingHtml);
@@ -841,7 +929,7 @@ async function executeWebSearch(queries, timeRange, engine) {
             } else {
                 // 必应优先（默认）
                 console.log('[ToolCalling] 必应搜索:', query, timeRange ? `(${timeRange})` : '');
-                const bingHtml = nativeHttpGet(`https://cn.bing.com/search?q=${encodedQuery}${bingTimeParam}`);
+                const bingHtml = await nativeHttpGet(`https://cn.bing.com/search?q=${encodedQuery}${bingTimeParam}`);
                 
                 if (bingHtml && !bingHtml.startsWith('{"error"')) {
                     results = parseBingResults(bingHtml);
@@ -850,8 +938,9 @@ async function executeWebSearch(queries, timeRange, engine) {
 
                 // 必应失败或无结果，回退360
                 if (results.length === 0) {
+                    if (abortController && abortController.signal.aborted) break;
                     console.log('[ToolCalling] 必应无结果，尝试360搜索');
-                    const soHtml = nativeHttpGet(`https://www.so.com/s?q=${encodedQuery}`);
+                    const soHtml = await nativeHttpGet(`https://www.so.com/s?q=${encodedQuery}`);
                     
                     if (soHtml && !soHtml.startsWith('{"error"')) {
                         results = parse360Results(soHtml);
@@ -941,7 +1030,7 @@ async function getIPLocation() {
     }
     try {
         // ip-api.com 免费 JSON API，无需 Key，返回省市信息
-        const json = nativeHttpGet('http://ip-api.com/json/?lang=zh-CN');
+        const json = await nativeHttpGet('http://ip-api.com/json/?lang=zh-CN');
         if (json && !json.startsWith('{"error"')) {
             const data = JSON.parse(json);
             if (data.status === 'success') {
@@ -1853,7 +1942,7 @@ function formatFileSize(bytes) {
 async function executeFetchUrl(url) {
     try {
         console.log('[ToolCalling] 抓取网页:', url);
-        const html = nativeHttpGet(url);
+        const html = await nativeHttpGet(url);
         if (!html || html.startsWith('{"error"')) {
             return `无法访问该链接：${html || '请求失败'}`;
         }

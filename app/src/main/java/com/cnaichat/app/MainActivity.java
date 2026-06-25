@@ -47,11 +47,14 @@ import android.widget.Toast;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import okhttp3.Call;
+import okhttp3.Callback;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -61,6 +64,7 @@ import okio.ByteString;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 
 // GDT 广告 SDK 导入（已停用）
@@ -93,6 +97,17 @@ import com.bytedance.sdk.openadsdk.TTAdSdk;
 public class MainActivity extends Activity {
 
     private WebView webView;
+    // 全局共享 OkHttpClient，复用连接池和线程池
+    private static final OkHttpClient sharedHttpClient = new OkHttpClient.Builder()
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build();
+    // 跟踪正在进行的异步 HTTP 请求，支持取消
+    private final Map<String, Call> pendingHttpCalls = new ConcurrentHashMap<>();
+    // 标记已被取消的回调 ID，避免 cancel 后的 onFailure 回调产生冗余 evaluateJavascript
+    private final java.util.Set<String> cancelledCallbacks = ConcurrentHashMap.newKeySet();
     private volatile boolean messageInputHasSelection = false; // textarea 选区状态
     private String currentThemeColor = "#0f0f0f"; // 默认主题色（暗色背景）
     private static final int FILE_CHOOSER_REQUEST_CODE = 1001;
@@ -1274,6 +1289,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // 取消所有正在进行的异步 HTTP 请求
+        for (Map.Entry<String, Call> entry : pendingHttpCalls.entrySet()) {
+            if (!entry.getValue().isCanceled()) entry.getValue().cancel();
+        }
+        pendingHttpCalls.clear();
+        cancelledCallbacks.clear();
         if (embeddingGenerator != null) {
             embeddingGenerator.close();
         }
@@ -3291,6 +3312,185 @@ public class MainActivity extends Activity {
                 }
 
                 return result[0];
+            }
+
+            /**
+             * 异步原生 HTTP GET 请求（不阻塞 JS 线程）
+             * 使用 OkHttp enqueue 走其内置线程池，支持 cancel
+             * @param url 请求的 URL
+             * @param callbackId JS 回调 ID
+             */
+            @JavascriptInterface
+            public void httpGetAsync(String url, String callbackId) {
+                try {
+                    Request request = new Request.Builder()
+                        .url(url)
+                        .header("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36")
+                        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                        .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+                        .build();
+
+                    Call call = sharedHttpClient.newCall(request);
+                    pendingHttpCalls.put(callbackId, call);
+
+                    call.enqueue(new Callback() {
+                        @Override
+                        public void onFailure(Call call, IOException e) {
+                            pendingHttpCalls.remove(callbackId);
+                            String errMsg = e.getMessage() != null ? e.getMessage().replace("\"", "'") : "unknown";
+                            if (call.isCanceled()) errMsg = "cancelled";
+                            deliverHttpResult(callbackId, "{\"error\":\"" + errMsg + "\"}");
+                        }
+
+                        @Override
+                        public void onResponse(Call call, Response response) throws IOException {
+                            pendingHttpCalls.remove(callbackId);
+                            String result;
+                            try {
+                                if (response.isSuccessful() && response.body() != null) {
+                                    long contentLength = response.body().contentLength();
+                                    if (contentLength > 2 * 1024 * 1024) {
+                                        result = "{\"error\":\"response_too_large\"}";
+                                    } else {
+                                        // 读取字节后智能检测编码
+                                        byte[] bytes = response.body().bytes();
+                                        if (bytes.length > 2 * 1024 * 1024) {
+                                            byte[] trimmed = new byte[2 * 1024 * 1024];
+                                            System.arraycopy(bytes, 0, trimmed, 0, trimmed.length);
+                                            bytes = trimmed;
+                                        }
+                                        result = decodeHtmlEncoding(bytes, response);
+                                    }
+                                } else {
+                                    result = "{\"error\":\"HTTP " + response.code() + "\"}";
+                                }
+                            } catch (Exception e) {
+                                result = "{\"error\":\"" + (e.getMessage() != null ? e.getMessage().replace("\"", "'") : "read_error") + "\"}";
+                            }
+                            deliverHttpResult(callbackId, result);
+                        }
+                    });
+                } catch (Exception e) {
+                    pendingHttpCalls.remove(callbackId);
+                    deliverHttpResult(callbackId, "{\"error\":\"" + (e.getMessage() != null ? e.getMessage().replace("\"", "'") : "unknown") + "\"}");
+                }
+            }
+
+            /**
+             * 取消指定的异步 HTTP 请求
+             * @param callbackId JS 回调 ID
+             */
+            @JavascriptInterface
+            public void cancelHttpRequest(String callbackId) {
+                Call call = pendingHttpCalls.remove(callbackId);
+                if (call != null && !call.isCanceled()) {
+                    cancelledCallbacks.add(callbackId);
+                    call.cancel();
+                }
+            }
+
+            /**
+             * 取消所有正在进行的异步 HTTP 请求
+             */
+            @JavascriptInterface
+            public void cancelAllHttpRequests() {
+                java.util.Iterator<Map.Entry<String, Call>> it = pendingHttpCalls.entrySet().iterator();
+                while (it.hasNext()) {
+                    Map.Entry<String, Call> entry = it.next();
+                    it.remove();
+                    cancelledCallbacks.add(entry.getKey());
+                    if (!entry.getValue().isCanceled()) entry.getValue().cancel();
+                }
+            }
+
+            /**
+             * 将 HTTP 结果回传给 JS（在 UI 线程执行）
+             */
+            private void deliverHttpResult(String callbackId, String result) {
+                // 如果该回调已被取消，跳过无意义的 evaluateJavascript
+                if (cancelledCallbacks.remove(callbackId)) {
+                    return;
+                }
+                final String finalResult = result;
+                final String finalCbId = callbackId;
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    String safeResult = new org.json.JSONArray().put(finalResult).toString();
+                    String innerJson = safeResult.substring(1, safeResult.length() - 1);
+                    // callbackId 用 JSONObject.quote 正确转为 JSON 字符串（如 "cb_1"），而非数组 ["cb_1"]
+                    String cbIdJson = org.json.JSONObject.quote(finalCbId);
+                    String js = "window.__httpCallback(" + cbIdJson + "," + innerJson + ");";
+                    webView.evaluateJavascript(js, null);
+                });
+            }
+
+            /**
+             * 智能解码 HTML 响应体，处理 charset 问题
+             * 优先级: HTTP header > meta charset > 字节级检测 > UTF-8
+             */
+            private String decodeHtmlEncoding(byte[] bytes, Response response) {
+                // 1. 先用 UTF-8 解码（大多数情况正确）
+                String utf8 = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                // 检查是否有明显的乱码（替换字符 \uFFFD）
+                boolean hasUtf8Errors = utf8.indexOf('\uFFFD') >= 0;
+
+                if (!hasUtf8Errors) return utf8;
+
+                // 2. 检查 Content-Type header
+                String contentType = response.header("Content-Type");
+                if (contentType != null) {
+                    String charset = parseCharsetFromContentType(contentType);
+                    if (charset != null) {
+                        try {
+                            return new String(bytes, charset);
+                        } catch (Exception ignored) {}
+                    }
+                }
+
+                // 3. 检查 HTML meta charset
+                String metaCharset = parseMetaCharset(utf8);
+                if (metaCharset != null) {
+                    try {
+                        return new String(bytes, metaCharset);
+                    } catch (Exception ignored) {}
+                }
+
+                // 4. 兜底尝试 GBK（中文老站常见）
+                try {
+                    String gbk = new String(bytes, "GBK");
+                    if (gbk.indexOf('\uFFFD') < 0) return gbk;
+                } catch (Exception ignored) {}
+
+                // 5. 最终兜底 UTF-8
+                return utf8;
+            }
+
+            /**
+             * 从 Content-Type 提取 charset，如 "text/html; charset=gbk" → "gbk"
+             */
+            private String parseCharsetFromContentType(String contentType) {
+                String lower = contentType.toLowerCase();
+                int idx = lower.indexOf("charset=");
+                if (idx >= 0) {
+                    String charset = contentType.substring(idx + 8).trim();
+                    // 去掉分号后面的内容
+                    int semi = charset.indexOf(';');
+                    if (semi >= 0) charset = charset.substring(0, semi);
+                    return charset.trim();
+                }
+                return null;
+            }
+
+            /**
+             * 从 HTML 内容中解析 <meta charset="..."> 或 <meta http-equiv="Content-Type" content="...; charset=...">
+             */
+            private String parseMetaCharset(String html) {
+                // <meta charset="gbk">
+                java.util.regex.Matcher m1 = java.util.regex.Pattern.compile(
+                    "<meta[^>]+charset=[\"']?([\\w-]+)", java.util.regex.Pattern.CASE_INSENSITIVE
+                ).matcher(html.length() > 2000 ? html.substring(0, 2000) : html);
+                if (m1.find()) return m1.group(1);
+                return null;
             }
 
             /**
