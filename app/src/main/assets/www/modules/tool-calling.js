@@ -1321,52 +1321,133 @@ function resolvePath(path) {
 }
 
 /**
- * 简单行级 diff：对比旧内容和新内容，返回变更行
+ * 基于 LCS（最长公共子序列）的行级 diff 算法
+ * 先裁剪公共前缀和后缀缩小范围，再对中间差异区域做 LCS，保证 diff 最小化
+ * 前后缀只保留最多 CONTEXT 行上下文，避免大文件输出过多无关行
  */
 function computeDiff(oldText, newText) {
+    const CONTEXT = 3;       // 上下文行数
+    const LCS_LIMIT = 500000; // DP 表最大单元数，超出则降级
+
     const oldLines = oldText.split('\n');
     const newLines = newText.split('\n');
+    const n = oldLines.length;
+    const m = newLines.length;
     const lines = [];
     let added = 0, removed = 0;
-    let oi = 0, ni = 0;
-    while (oi < oldLines.length || ni < newLines.length) {
-        if (oi < oldLines.length && ni < newLines.length && oldLines[oi] === newLines[ni]) {
-            lines.push({ type: 'ctx', line: ni + 1, content: oldLines[oi] });
-            oi++; ni++;
+
+    // 1. 裁剪公共前缀
+    let start = 0;
+    while (start < n && start < m && oldLines[start] === newLines[start]) {
+        start++;
+    }
+
+    // 2. 裁剪公共后缀
+    let endOld = n - 1, endNew = m - 1;
+    while (endOld >= start && endNew >= start && oldLines[endOld] === newLines[endNew]) {
+        endOld--;
+        endNew--;
+    }
+
+    // 3. 添加公共前缀为上下文（只保留最后 CONTEXT 行，统一用新文件行号）
+    const prefixStart = Math.max(0, start - CONTEXT);
+    for (let i = prefixStart; i < start; i++) {
+        lines.push({ type: 'ctx', line: i + 1, content: newLines[i] });
+    }
+
+    // 4. 对中间差异区域做 LCS
+    const aLen = endOld - start + 1;  // 旧内容差异行数
+    const bLen = endNew - start + 1;  // 新内容差异行数
+
+    if (aLen > 0 || bLen > 0) {
+        if (aLen * bLen > LCS_LIMIT) {
+            // 降级：差异区域过大，用有限窗口贪心匹配（窗口=20，复杂度 O(20n)）
+            const WINDOW = 20;
+            let oi = 0, ni = 0;
+            let oldLn = start, newLn = start;
+            while (oi < aLen || ni < bLen) {
+                if (oi < aLen && ni < bLen && oldLines[start + oi] === newLines[start + ni]) {
+                    lines.push({ type: 'ctx', line: newLn + 1, content: newLines[start + ni] });
+                    oi++; ni++; oldLn++; newLn++;
+                } else {
+                    // 在新内容中向前找旧行（窗口内）
+                    let foundNew = -1;
+                    for (let k = ni + 1; k < Math.min(bLen, ni + WINDOW); k++) {
+                        if (oldLines[start + oi] === newLines[start + k]) { foundNew = k; break; }
+                    }
+                    // 在旧内容中向前找新行（窗口内）
+                    let foundOld = -1;
+                    for (let k = oi + 1; k < Math.min(aLen, oi + WINDOW); k++) {
+                        if (newLines[start + ni] === oldLines[start + k]) { foundOld = k; break; }
+                    }
+                    if (foundNew >= 0 && (foundOld < 0 || foundNew - ni <= foundOld - oi)) {
+                        while (ni < foundNew) {
+                            lines.push({ type: 'add', line: newLn + 1, content: newLines[start + ni] });
+                            added++; ni++; newLn++;
+                        }
+                    } else if (foundOld >= 0) {
+                        while (oi < foundOld) {
+                            lines.push({ type: 'del', line: oldLn + 1, content: oldLines[start + oi] });
+                            removed++; oi++; oldLn++;
+                        }
+                    } else {
+                        if (oi < aLen) {
+                            lines.push({ type: 'del', line: oldLn + 1, content: oldLines[start + oi] });
+                            removed++; oi++; oldLn++;
+                        }
+                        if (ni < bLen) {
+                            lines.push({ type: 'add', line: newLn + 1, content: newLines[start + ni] });
+                            added++; ni++; newLn++;
+                        }
+                    }
+                }
+            }
         } else {
-            let foundInNew = -1;
-            for (let k = ni + 1; k < newLines.length; k++) {
-                if (oldLines[oi] === newLines[k]) { foundInNew = k; break; }
-            }
-            let foundInOld = -1;
-            for (let k = oi + 1; k < oldLines.length; k++) {
-                if (newLines[ni] === oldLines[k]) { foundInOld = k; break; }
-            }
-            if (foundInNew >= 0 && (foundInOld < 0 || foundInNew - ni <= foundInOld - oi)) {
-                while (ni < foundInNew) {
-                    lines.push({ type: 'add', line: ni + 1, content: newLines[ni] });
-                    added++; ni++;
+            // 构建 LCS DP 表（反向填充），使用 Int32Array 节省内存
+            const dp = Array.from({ length: aLen + 1 }, () => new Int32Array(bLen + 1));
+            for (let i = aLen - 1; i >= 0; i--) {
+                for (let j = bLen - 1; j >= 0; j--) {
+                    if (oldLines[start + i] === newLines[start + j]) {
+                        dp[i][j] = dp[i + 1][j + 1] + 1;
+                    } else {
+                        dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+                    }
                 }
-            } else if (foundInOld >= 0) {
-                while (oi < foundInOld) {
-                    lines.push({ type: 'del', line: oi + 1, content: oldLines[oi] });
-                    removed++; oi++;
+            }
+
+            // 回溯生成 diff（优先删除再添加，保持操作顺序自然）
+            let oi = 0, ni = 0;
+            let oldLn = start, newLn = start;
+            while (oi < aLen && ni < bLen) {
+                if (oldLines[start + oi] === newLines[start + ni]) {
+                    lines.push({ type: 'ctx', line: newLn + 1, content: oldLines[start + oi] });
+                    oi++; ni++; oldLn++; newLn++;
+                } else if (dp[oi + 1][ni] >= dp[oi][ni + 1]) {
+                    lines.push({ type: 'del', line: oldLn + 1, content: oldLines[start + oi] });
+                    removed++; oi++; oldLn++;
+                } else {
+                    lines.push({ type: 'add', line: newLn + 1, content: newLines[start + ni] });
+                    added++; ni++; newLn++;
                 }
-            } else if (oi < oldLines.length && ni < newLines.length) {
-                lines.push({ type: 'del', line: oi + 1, content: oldLines[oi] });
-                removed++;
-                lines.push({ type: 'add', line: ni + 1, content: newLines[ni] });
-                added++;
-                oi++; ni++;
-            } else if (oi < oldLines.length) {
-                lines.push({ type: 'del', line: oi + 1, content: oldLines[oi] });
-                removed++; oi++;
-            } else {
-                lines.push({ type: 'add', line: ni + 1, content: newLines[ni] });
-                added++; ni++;
+            }
+            while (oi < aLen) {
+                lines.push({ type: 'del', line: oldLn + 1, content: oldLines[start + oi] });
+                removed++; oi++; oldLn++;
+            }
+            while (ni < bLen) {
+                lines.push({ type: 'add', line: newLn + 1, content: newLines[start + ni] });
+                added++; ni++; newLn++;
             }
         }
     }
+
+    // 5. 添加公共后缀为上下文（只保留前 CONTEXT 行）
+    const suffixCount = n - endOld - 1;
+    const suffixLimit = Math.min(suffixCount, CONTEXT);
+    for (let k = 1; k <= suffixLimit; k++) {
+        lines.push({ type: 'ctx', line: endNew + k + 1, content: oldLines[endOld + k] });
+    }
+
     return { lines, stats: { added, removed } };
 }
 
