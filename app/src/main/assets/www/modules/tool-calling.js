@@ -1876,8 +1876,8 @@ function executeReadFile(path, encoding, offset, limit) {
             return `错误：${data.error}`;
         }
         // 格式化输出
-        let result = `文件：${data.path}\n`;
-        result += `行 ${data.startLine}-${data.endLine} / 共 ${data.totalLines} 行\n\n`;
+        let result = `行 ${data.startLine}-${data.endLine} / 共 ${data.totalLines} 行\n`;
+        result += `文件：${data.path}\n\n`;
 
         // 逐行追加，累计字符数到达上限后截断
         let charCount = result.length;

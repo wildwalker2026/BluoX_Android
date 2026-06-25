@@ -8816,6 +8816,8 @@ body.dark-theme .diff-line.add { background: rgba(76, 175, 80, 0.15); border-lef
 body.dark-theme .diff-line.add .diff-code { color: #81c784; }
 body.dark-theme .diff-line.del { background: rgba(244, 67, 54, 0.15); border-left-color: #ef5350; }
 body.dark-theme .diff-line.del .diff-code { color: #ef9a9a; }
+body.dark-theme .confirm-diff-line.add .confirm-diff-code { color: #81c784; }
+body.dark-theme .confirm-diff-line.del .confirm-diff-code { color: #ef9a9a; }
 
 /* ==================== 确认卡片样式（复用PC端） ==================== */
 .confirm-card {
@@ -8892,9 +8894,9 @@ body.dark-theme .diff-line.del .diff-code { color: #ef9a9a; }
     tab-size: 4;
 }
 .confirm-diff-line.add { background: rgba(46, 125, 50, 0.12); }
-.confirm-diff-line.add .confirm-diff-code { color: #1b5e20; }
+.confirm-diff-line.add .confirm-diff-code { color: #1b5e20; font-weight: 500; }
 .confirm-diff-line.del { background: rgba(198, 40, 40, 0.12); }
-.confirm-diff-line.del .confirm-diff-code { color: #b71c1c; }
+.confirm-diff-line.del .confirm-diff-code { color: #b71c1c; font-weight: 500; }
 .confirm-diff-sep {
     text-align: center;
     padding: 6px 0;
