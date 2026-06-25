@@ -7414,6 +7414,11 @@ function updateVersionSwitcher(messageDiv, messageData) {
 
 // 切换消息版本
 function switchMessageVersion(messageDiv, direction) {
+    // 内容生成中时不允许切换版本
+    if (isSending) {
+        showToast('内容正在生成中，请稍候');
+        return;
+    }
     // 优先通过 ID 查找消息
     const msgId = getMessageIdFromDiv(messageDiv);
     let messageIndex;
