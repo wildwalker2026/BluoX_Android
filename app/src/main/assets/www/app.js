@@ -8637,7 +8637,6 @@ function logCacheHitInfo(usageData) {
 // 创建助手消息对象 - 统一消息创建逻辑
 function createAssistantMessage(content, reasoning, responseId, annotations, prevId) {
     const msgId = currentAiMessageId || generateMessageId();
-    currentAiMessageId = null; // 用完即清
     return {
         id: msgId,
         role: 'assistant',
@@ -13311,36 +13310,38 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
             targetMessage.annotations = currentAnnotations;
             resendUserId = null;
 
-            // 更新 UI：把内容写入复用的旧气泡，并显示版本切换器
-            if (currentAiMessageDiv) {
-                const messageContent = currentAiMessageDiv.querySelector('.message-content');
+            // 通过 data-message-id 查找气泡 DOM
+            const aiBubble = currentAiMessageId ? findMessageDivById(currentAiMessageId) : null;
+            if (aiBubble) {
+                const messageContent = aiBubble.querySelector('.message-content');
                 if (messageContent) {
                     messageContent.innerHTML = formatMessage(versionContent);
                     messageContent.dataset.content = versionContent;
                 }
-                updateVersionSwitcher(currentAiMessageDiv, targetMessage);
+                updateVersionSwitcher(aiBubble, targetMessage);
             }
 
             saveMessages(messages);
         } else {
             // 普通发送场景（非刷新/重发）的错误处理
-            // 1. 先保存当前气泡已有内容（如果有）
-            if (currentAiContent) {
-                const lastUserMsgForGen = [...messages].reverse().find(m => m.role === 'user');
-                const partialMsg = createAssistantMessage(currentAiContent, currentThinkingContent || null, null, currentAnnotations, lastUserMsgForGen ? lastUserMsgForGen.id : null);
-                if (currentAiMessageDiv && !currentAiMessageDiv.dataset.messageId) {
-                    currentAiMessageDiv.dataset.messageId = partialMsg.id;
+            // 将停止/错误提示写入当前 AI 气泡，不新增气泡
+            const errorContent = error.name === 'AbortError' ? '⏹️ 已停止生成' : '❌ 错误：' + error.message;
+            const finalContent = currentAiContent || errorContent;
+
+            const lastUserMsgForGen = [...messages].reverse().find(m => m.role === 'user');
+            const partialMsg = createAssistantMessage(finalContent, currentThinkingContent || null, null, currentAnnotations, lastUserMsgForGen ? lastUserMsgForGen.id : null);
+
+            // 通过 data-message-id 查找气泡 DOM
+            const aiBubble = currentAiMessageId ? findMessageDivById(currentAiMessageId) : null;
+            if (aiBubble) {
+                const messageContent = aiBubble.querySelector('.message-content');
+                if (messageContent) {
+                    messageContent.innerHTML = formatMessage(finalContent);
+                    messageContent.dataset.content = finalContent;
                 }
-                messages.push(partialMsg);
             }
 
-            // 2. 新增错误气泡
-            const errorContent = error.name === 'AbortError' ? '⏹️ 已停止生成' : '❌ 错误：' + error.message;
-            const lastMsg = messages[messages.length - 1];
-            const prevId = lastMsg ? lastMsg.id : null;
-            const errorMsgObj = createAssistantMessage(errorContent, null, null, null, prevId);
-            appendMessage('ai', errorContent, true, false, Date.now(), null, null, 0, null, null, null, errorMsgObj.id);
-            messages.push(errorMsgObj);
+            messages.push(partialMsg);
             saveMessages(messages);
         }
     } // end if (error)
