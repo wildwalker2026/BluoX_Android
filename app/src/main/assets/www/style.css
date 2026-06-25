@@ -8913,7 +8913,7 @@ body.dark-theme .diff-line.del .diff-code { color: #ef9a9a; }
 }
 .confirm-actions {
     display: flex;
-    gap: 8px;
+    justify-content: space-between;
     align-items: center;
 }
 .confirm-btn {
@@ -9631,4 +9631,3 @@ body.immersive-mode .message.ai .ai-message-number {
 .tool-call-card:not(.immersive-hidden) {
     transition: opacity 0.5s ease !important;
 }
-

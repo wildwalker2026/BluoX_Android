@@ -1435,8 +1435,8 @@ function showConfirmCard(tc, toolArgs, confirmInfo, chatContainer, onConfirm) {
             <div class="confirm-desc">${escapeHtml(desc)}</div>
             ${diffHtml}
             <div class="confirm-actions">
-                <button class="confirm-btn confirm-allow">✅ 允许执行</button>
                 <button class="confirm-btn confirm-reject">❌ 拒绝</button>
+                <button class="confirm-btn confirm-allow">✅ 允许执行</button>
             </div>
         `;
         chatContainer.appendChild(card);
@@ -1540,8 +1540,8 @@ function showSimpleConfirm(action, target, chatContainer, onConfirm, title) {
             <div class="confirm-title">⚠️ ${title || 'AI 请求执行操作'}</div>
             <div class="confirm-desc">${escapeHtml(desc)}</div>
             <div class="confirm-actions">
-                <button class="confirm-btn confirm-allow">✅ 允许执行</button>
                 <button class="confirm-btn confirm-reject">❌ 拒绝</button>
+                <button class="confirm-btn confirm-allow">✅ 允许执行</button>
             </div>
         `;
         chatContainer.appendChild(card);
