@@ -61,6 +61,9 @@ public class TermuxBridge {
     // 已取消的异步命令 callbackId 集合
     private static final ConcurrentHashMap<String, Boolean> cancelledCallbacks = new ConcurrentHashMap<>();
 
+    // 活跃的异步命令 callbackId 集合
+    private static final ConcurrentHashMap<String, Boolean> activeCallbacks = new ConcurrentHashMap<>();
+
     private final Context context;
 
     public TermuxBridge(Context context) {
@@ -214,24 +217,32 @@ public class TermuxBridge {
     private void executeAsyncInternal(String command, String workDir, String callbackId,
                                       WebView webView, Activity activity, int timeoutSecs) {
         final boolean[] callbackCalled = {false};
+        // callbackCalled 在主线程（超时）和工作线程（执行完成）之间共享
+        // 使用 synchronized 块保证线程安全，避免竞态导致双重回调
+        final Object callbackLock = new Object();
         cancelledCallbacks.remove(callbackId);
+        activeCallbacks.put(callbackId, true);
 
         // 超时保护
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (!callbackCalled[0]) {
+            synchronized (callbackLock) {
+                if (callbackCalled[0]) return;
                 callbackCalled[0] = true;
-                Log.w(TAG, "异步命令超时: " + callbackId + " (" + timeoutSecs + "s)");
-                callbackJs(webView, activity, callbackId,
-                        "{\"error\":\"命令执行超时（" + timeoutSecs + "秒）\"}");
             }
+            activeCallbacks.remove(callbackId);
+            Log.w(TAG, "异步命令超时: " + callbackId + " (" + timeoutSecs + "s)");
+            callbackJs(webView, activity, callbackId,
+                    "{\"error\":\"命令执行超时（" + timeoutSecs + "秒）\"}");
         }, timeoutSecs * 1000L);
 
         new Thread(() -> {
             String result = executeViaFile(command, workDir, timeoutSecs, callbackId);
-            if (!callbackCalled[0]) {
+            activeCallbacks.remove(callbackId);
+            synchronized (callbackLock) {
+                if (callbackCalled[0]) return;
                 callbackCalled[0] = true;
-                callbackJs(webView, activity, callbackId, result);
             }
+            callbackJs(webView, activity, callbackId, result);
         }, "TermuxAsync-" + callbackId).start();
     }
 
@@ -242,7 +253,10 @@ public class TermuxBridge {
     }
 
     public void cancelAllAsyncCommands() {
-        Log.i(TAG, "取消所有 Termux 异步命令");
+        Log.i(TAG, "取消所有 Termux 异步命令: " + activeCallbacks.size() + " 个");
+        for (String cbId : activeCallbacks.keySet()) {
+            cancelledCallbacks.put(cbId, true);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════

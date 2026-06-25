@@ -2364,6 +2364,9 @@ async function executeToolCall(tc) {
     function formatTermuxResult(raw) {
         try {
             const result = JSON.parse(raw);
+            if (result.cancelled) {
+                return '⏹️ Termux 命令已被取消。';
+            }
             if (result.error) {
                 return '❌ Termux 命令执行失败: ' + result.error;
             }

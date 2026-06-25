@@ -1916,6 +1916,7 @@ function getWebSearchToolParams(name, args) {
         case 'search_files': case 'search_content':
             return `(${show(args.directory, 120)}, "${show(args.pattern, 120)}")`;
         case 'execute_command':
+        case 'run_termux_command':
             return `(${show(args.command, 120)})`;
         // case 'get_system_info': // [已注释]
         //     return `(${args.type || 'all'})`;
