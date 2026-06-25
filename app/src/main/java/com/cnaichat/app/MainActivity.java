@@ -108,6 +108,7 @@ public class MainActivity extends Activity {
     private final Map<String, Call> pendingHttpCalls = new ConcurrentHashMap<>();
     // 标记已被取消的回调 ID，避免 cancel 后的 onFailure 回调产生冗余 evaluateJavascript
     private final java.util.Set<String> cancelledCallbacks = ConcurrentHashMap.newKeySet();
+    private volatile String pendingKnowledgeFilesData = null;
     private volatile boolean messageInputHasSelection = false; // textarea 选区状态
     private String currentThemeColor = "#0f0f0f"; // 默认主题色（暗色背景）
     private static final int FILE_CHOOSER_REQUEST_CODE = 1001;
@@ -1227,9 +1228,11 @@ public class MainActivity extends Activity {
                 jsonWriter = null;
 
                 final String jsonArray = stringWriter.toString();
+                // 暂存数据，让 JS 主动拉取（避免 evaluateJavascript 超长字符串问题）
+                pendingKnowledgeFilesData = jsonArray;
                 runOnUiThread(() -> {
                     webView.evaluateJavascript(
-                            "if (typeof handleAndroidKnowledgeFilesSelected === 'function') { handleAndroidKnowledgeFilesSelected(" + jsonArray + "); }",
+                            "if (typeof handleAndroidKnowledgeFilesReady === 'function') { handleAndroidKnowledgeFilesReady(); } else { console.error('handleAndroidKnowledgeFilesReady 函数不存在'); }",
                             null
                     );
                 });
@@ -2434,6 +2437,13 @@ public class MainActivity extends Activity {
                     }
                     openKnowledgeFileChooserInternal();
                 });
+            }
+
+            @JavascriptInterface
+            public String getPendingKnowledgeFiles() {
+                String data = pendingKnowledgeFilesData;
+                pendingKnowledgeFilesData = null;
+                return data;
             }
 
             @JavascriptInterface

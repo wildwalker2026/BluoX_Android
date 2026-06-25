@@ -526,7 +526,7 @@ let selectedKnowledgeDocId = localStorage.getItem('cnai_selected_knowledge_doc_i
 
 // 知识库 IndexedDB
 const KNOWLEDGE_DB_NAME = 'CNAIChatKnowledgeBase';
-const KNOWLEDGE_DB_VERSION = 1;
+const KNOWLEDGE_DB_VERSION = 2; // v2: 修复 objectStore 缺少 keyPath 的问题
 const KNOWLEDGE_STORE_NAME = 'documents';
 let knowledgeDB = null;
 
@@ -3042,10 +3042,20 @@ function initKnowledgeDB() {
 
         request.onupgradeneeded = (event) => {
             const db = event.target.result;
-            if (!db.objectStoreNames.contains(KNOWLEDGE_STORE_NAME)) {
-                db.createObjectStore(KNOWLEDGE_STORE_NAME, { keyPath: 'id' });
-                console.log('知识库 Object store 已创建:', KNOWLEDGE_STORE_NAME);
+            const transaction = event.target.transaction;
+
+            if (db.objectStoreNames.contains(KNOWLEDGE_STORE_NAME)) {
+                const existingStore = transaction.objectStore(KNOWLEDGE_STORE_NAME);
+                if (existingStore.keyPath) {
+                    // store 结构正确，保留数据
+                    return;
+                }
+                // 没有 keyPath（坏掉的），删除重建（已有数据会丢失）
+                db.deleteObjectStore(KNOWLEDGE_STORE_NAME);
+                console.warn('知识库: 删除无 keyPath 的旧 Object store，已有数据将丢失');
             }
+            db.createObjectStore(KNOWLEDGE_STORE_NAME, { keyPath: 'id' });
+            console.log('知识库 Object store 已创建:', KNOWLEDGE_STORE_NAME);
         };
     });
 }
@@ -16505,7 +16515,13 @@ async function importIndexedDBStore(dbName, dbVersion, storeName, data) {
         request.onupgradeneeded = (e) => {
             const db = e.target.result;
             if (!db.objectStoreNames.contains(storeName)) {
-                db.createObjectStore(storeName);
+                // 根据数据内容判断是否需要 keyPath
+                const hasIdField = data && data.length > 0 && data[0] && typeof data[0].id !== 'undefined' && data[0].key === undefined;
+                if (hasIdField) {
+                    db.createObjectStore(storeName, { keyPath: 'id' });
+                } else {
+                    db.createObjectStore(storeName);
+                }
             }
         };
     });
@@ -17462,6 +17478,23 @@ window.handleAndroidFileSelected = async function (fileData) {
         console.error('文件处理失败:', error);
         alert(`文件 "${fileData.name}" 处理失败: ${error.message}`);
     }
+};
+
+// 处理安卓端选择的知识库文件（由 Java 端通知后，JS 主动拉取数据）
+window.handleAndroidKnowledgeFilesReady = async function () {
+    let filesData = null;
+    try {
+        const raw = AndroidBridge.getPendingKnowledgeFiles();
+        if (!raw) {
+            console.warn('知识库文件数据为空');
+            return;
+        }
+        filesData = JSON.parse(raw);
+    } catch (e) {
+        console.error('拉取知识库文件数据失败:', e);
+        return;
+    }
+    await handleAndroidKnowledgeFilesSelected(filesData);
 };
 
 // 处理安卓端选择的知识库文件
