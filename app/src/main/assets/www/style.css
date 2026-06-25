@@ -8867,6 +8867,11 @@ body.dark-theme .diff-line.del .diff-code { color: #ef9a9a; }
     max-height: 300px;
     overflow: auto;
 }
+.confirm-diff-inner {
+    display: inline-block;
+    min-width: 100%;
+    box-sizing: border-box;
+}
 .confirm-diff-line {
     display: flex;
     padding: 1px 10px;
@@ -8895,7 +8900,6 @@ body.dark-theme .diff-line.del .diff-code { color: #ef9a9a; }
     padding: 6px 0;
     margin: 6px 0;
     border-top: 1px solid #555;
-    min-width: fit-content;
 }
 .confirm-status { color: #888; font-style: italic; }
 .confirm-rejected { color: #c62828; }

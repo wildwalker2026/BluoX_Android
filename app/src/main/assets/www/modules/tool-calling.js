@@ -1554,7 +1554,7 @@ function buildDiffHtml(diffData) {
     if (!diffData || !diffData.lines || diffData.lines.length === 0) {
         return '<div class="confirm-preview">无变更</div>';
     }
-    let html = '<div class="confirm-diff-body">';
+    let html = '<div class="confirm-diff-body"><div class="confirm-diff-inner">';
     // 如果数据含 sep 分隔符，说明已过滤过上下文（PC 端），直接渲染
     const hasSep = diffData.lines.some(l => l.type === 'sep');
     if (hasSep) {
@@ -1591,7 +1591,7 @@ function buildDiffHtml(diffData) {
             html += '<div class="confirm-diff-line ' + cls + '"><span class="confirm-diff-num">' + line.line + '</span><span class="confirm-diff-code">' + prefix + ' ' + escapeHtml(line.content) + '</span></div>';
         }
     }
-    html += '</div>';
+    html += '</div></div>';
     return html;
 }
 
