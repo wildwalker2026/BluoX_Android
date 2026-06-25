@@ -2434,7 +2434,16 @@ async function executeToolCall(tc) {
         'echo', 'printf', 'seq', 'test', 'expr', 'true', 'false',
         'sleep', 'timeout', 'time', 'clear', 'toybox',
         // 压缩查看（不解压）
-        'zcat'
+        'zcat',
+        // Git 只读操作（仅以下子命令安全，其余 git 命令一律需确认）
+        'git status', 'git log', 'git diff', 'git show', 'git blame',
+        'git branch', 'git tag', 'git remote', 'git rev-parse',
+        'git ls-files', 'git ls-tree', 'git ls-remote',
+        'git cat-file', 'git reflog', 'git describe',
+        'git config --list', 'git config --get',
+        'git shortlog', 'git name-rev', 'git rev-list',
+        'git count-objects', 'git verify-commit', 'git verify-tag',
+        'git var', 'git help'
     ];
     // 危险关键字：包含这些关键字的命令一律需要确认（即使在白名单前缀中）
     const DANGEROUS_KEYWORDS = [
