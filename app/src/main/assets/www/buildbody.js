@@ -21,7 +21,7 @@ async function pushUserMessage(content, displayContent) {
         content: content,
         displayContent: displayContent,
         timestamp: now,
-        prevId: prevAiId
+        prevId: prevAiId || getTopicRootId()
     };
 
     // 校验必填字段
@@ -94,4 +94,47 @@ function resolveContextConfig() {
         '| effectiveRounds:', effectiveRounds);
 
     return { useCacheOptimize, effectiveRounds };
+}
+
+/**
+ * 第三步：获取 API 端点
+ * 根据当前服务商返回对应的 API URL
+ * 依赖全局变量：currentAIProvider, customProviders
+ * @returns {string} API 端点 URL
+ */
+function getAPIEndpoint() {
+    // 检查是否为自定义服务商
+    if (currentAIProvider.startsWith('custom_')) {
+        const provider = customProviders.find(p => p.id === currentAIProvider);
+        if (provider) {
+            // 移除baseUrl末尾的斜杠
+            let baseUrl = provider.baseUrl.replace(/\/+$/, '');
+            if (provider.apiType === 'responses') {
+                return baseUrl + '/responses';
+            }
+            return baseUrl + '/chat/completions';
+        }
+    }
+
+    if (currentAIProvider === 'deepseek') {
+        return 'https://api.deepseek.com/chat/completions';
+    }
+    if (currentAIProvider === 'mimo') {
+        return 'https://api.xiaomimimo.com/v1/chat/completions';
+    }
+    if (currentAIProvider === 'minimax') {
+        return 'https://api.minimaxi.com/v1/chat/completions';
+    }
+    if (currentAIProvider === 'kimi') {
+        return 'https://api.moonshot.cn/v1/chat/completions';
+    }
+    if (currentAIProvider === 'doubao') {
+        // 豆包统一使用 responses 端点
+        return 'https://ark.cn-beijing.volces.com/api/v3/responses';
+    }
+    if (currentAIProvider === 'glm') {
+        return 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+    }
+    // 默认千问 - 统一使用 Responses API 端点
+    return 'https://dashscope.aliyuncs.com/api/v2/apps/protocols/compatible-mode/v1/responses';
 }

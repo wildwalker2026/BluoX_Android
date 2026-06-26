@@ -219,7 +219,23 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         isResumingFromBackground = false; // 冷启动，不是从后台恢复
-        userRotatedToLandscape = 0; // 重置横屏旋转标记
+        // 启动时立即读取竖屏锁定设置，避免平板横屏启动闪烁
+        SharedPreferences prefs = getSharedPreferences("cnai_prefs", MODE_PRIVATE);
+        boolean lockPortrait = prefs.getBoolean("lock_portrait", false);
+        if (lockPortrait) {
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+            userRotatedToLandscape = 0;
+            Log.d("Orientation", "启动时锁定竖屏");
+        } else {
+            // 检测初始屏幕方向，平板可能横屏启动
+            boolean initialLandscape = (getResources().getConfiguration().orientation
+                    == Configuration.ORIENTATION_LANDSCAPE);
+            userRotatedToLandscape = initialLandscape ? 1 : 0;
+            if (initialLandscape) {
+                updateStatusBarVisibility();
+                Log.d("Orientation", "应用启动时即为横屏（未锁定竖屏）");
+            }
+        }
 
         // 创建根布局
         FrameLayout rootLayout = new FrameLayout(this);
@@ -371,6 +387,16 @@ public class MainActivity extends Activity {
                     "if (typeof window.setMobileMode === 'function') { window.setMobileMode(); }",
                     null
                 );
+                // 页面加载完成后通知 JS 当前屏幕方向（处理平板横屏启动）
+                boolean isLandscape = (getResources().getConfiguration().orientation
+                        == Configuration.ORIENTATION_LANDSCAPE);
+                if (isLandscape) {
+                    webView.evaluateJavascript(
+                        "if (typeof window.onOrientationChange === 'function') { window.onOrientationChange(true); }",
+                        null
+                    );
+                    Log.d("Orientation", "onPageFinished 通知横屏状态");
+                }
                 Log.d("AdSdk", "onPageFinished");
             }
 
@@ -3262,6 +3288,9 @@ public class MainActivity extends Activity {
              */
             @JavascriptInterface
             public void setLockPortrait(boolean lock) {
+                // 同步写入 SharedPreferences，供下次启动时直接读取
+                getSharedPreferences("cnai_prefs", MODE_PRIVATE)
+                        .edit().putBoolean("lock_portrait", lock).apply();
                 runOnUiThread(() -> {
                     if (lock) {
                         setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);

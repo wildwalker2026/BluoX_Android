@@ -624,6 +624,11 @@ function generateMessageId() {
     return id;
 }
 
+// 获取话题根节点ID（全话题唯一，用于第一条消息的 prevId）
+function getTopicRootId() {
+    return (currentTopicId || 'default') + '_root';
+}
+
 // 从可见链中获取最后一条指定 role 的消息 id
 function getLastVisibleMsgIdByRole(role) {
     const visibleMsgs = getVisibleTimelineMessages();
@@ -1254,6 +1259,7 @@ let _streamTypewriterFlushed = false; // flush 后不再启动 typewriter
 let _streamTypewriterTargetDiv = null; // 缓存目标 div，防止 currentAiMessageDiv 被置 null
 let _streamLastRenderedLen = 0;  // 上次 formatMessage 渲染到的字符位置
 let _streamNewlineCount = 0;    // 当前未渲染的换行计数（每3行触发一次全量渲染）
+let _streamNewlineSinceLastScroll = 0; // 距上次置底滚动的换行计数
 
 // 重置流式渲染状态（新消息 / 重发 / 重试时调用）
 function resetStreamState() {
@@ -1262,6 +1268,7 @@ function resetStreamState() {
     _streamLastRenderedLen = 0;
     _streamTypewriterFlushed = false;
     _streamNewlineCount = 0;
+    _streamNewlineSinceLastScroll = 0;
 }
 
 // 仅重置渲染进度（tick 内内容被重置时调用，不重置 flushed 标志）
@@ -1726,7 +1733,8 @@ function initDefaultAgentTopics() {
         role: 'assistant',
         content: WANGZHAOJUN_DEFAULT_MESSAGE,
         timestamp: formatTimestamp(new Date()),
-        modelName: 'AI生成'
+        modelName: 'AI生成',
+        prevId: 'topic_9_root'
     }];
     saveMessagesToDB('cnai_messages_wangzhaojun_topic_topic_9', wangzhaojunMessages);
 }
@@ -1880,7 +1888,8 @@ async function getMessages() {
                 role: 'assistant',
                 content: defaultMessages[currentAgentId],
                 timestamp: formatTimestamp(new Date()),
-                modelName: 'AI生成'
+                modelName: 'AI生成',
+                prevId: getTopicRootId()
             }];
         }
     }
@@ -1929,9 +1938,7 @@ let isLoadingMoreMessages = false; // 标记是否正在加载更多消息
 // ========== 标题栏提示和计数辅助函数 ==========
 
 function showRenderingCount(count,msglength) {
-    const adHint = document.getElementById('adPulsingHint');
     const renderingCount = document.getElementById('renderingCount');
-    if (adHint) adHint.style.display = 'none';
     if (renderingCount) {
         renderingCount.style.display = 'block';
         renderingCount.textContent = '正在加载: ' + count + '（'+msglength+'）';
@@ -1939,9 +1946,7 @@ function showRenderingCount(count,msglength) {
 }
 
 function hideAllHeaderHints() {
-    const adHint = document.getElementById('adPulsingHint');
     const renderingCount = document.getElementById('renderingCount');
-    if (adHint) adHint.style.display = 'none';
     if (renderingCount) renderingCount.style.display = 'none';
 }
 
@@ -4443,6 +4448,27 @@ async function switchAgentAndTopic(agentId, topicId, onClose, onComplete, option
     // 应用沉浸模式
     applyImmersiveMode();
     messages = await getMessages();
+
+    // 迁移旧数据：确保所有消息的 prevId 链完整
+    if (messages.length > 0) {
+        const rootId = getTopicRootId();
+        let needSave = false;
+        // 第一条消息 prevId 必须是 root
+        if (messages[0].prevId !== rootId) {
+            messages[0].prevId = rootId;
+            needSave = true;
+        }
+        // 后续消息缺 prevId 的，指向上一条消息的 id
+        for (let i = 1; i < messages.length; i++) {
+            if (!messages[i].prevId) {
+                messages[i].prevId = messages[i - 1].id;
+                needSave = true;
+            }
+        }
+        if (needSave) {
+            await saveMessages(messages);
+        }
+    }
 
     if (messages.length > 0) {
         renderMessagesToChat(messages);
@@ -7445,20 +7471,9 @@ async function switchMessageVersion(messageDiv, direction) {
     }
     // 优先通过 ID 查找消息
     const msgId = getMessageIdFromDiv(messageDiv);
-    let messageIndex;
-    if (msgId) {
-        messageIndex = findMessageIndexById(msgId);
-        if (messageIndex < 0) {
-            // 回退到 DOM 索引
-            const allMessages = Array.from(chatContainer.querySelectorAll('.message'));
-            messageIndex = allMessages.indexOf(messageDiv);
-        }
-    } else {
-        const allMessages = Array.from(chatContainer.querySelectorAll('.message'));
-        messageIndex = allMessages.indexOf(messageDiv);
-    }
+    let messageIndex = msgId ? findMessageIndexById(msgId) : -1;
 
-    if (messageIndex === -1) return;
+    if (messageIndex < 0) return;
 
     const messageData = messages[messageIndex];
     if (!messageData || !messageData.versions || messageData.versions.length <= 1) return;
@@ -7481,180 +7496,32 @@ async function switchMessageVersion(messageDiv, direction) {
     messageData.reasoning = version.reasoning;
     messageData.timestamp = version.timestamp;
     messageData.modelName = version.modelName;
-    // 豆包 Session 缓存：版本切换时更新 responseId
-    console.log('====== 版本切换 ======');
-    console.log('版本索引:', currentIndex);
-    console.log('版本的 responseId:', version.responseId || '无');
-    console.log('消息对象原 responseId:', messageData.responseId || '无');
     if (version.responseId) {
         messageData.responseId = version.responseId;
-        console.log('更新后消息对象 responseId:', messageData.responseId);
-    }
-    console.log('========================');
-
-    // 更新 UI
-    const messageContent = messageDiv.querySelector('.message-content');
-
-    // 移除旧的思考内容
-    const existingThinking = messageContent.querySelector('.thinking-content');
-    if (existingThinking) {
-        existingThinking.remove();
-    }
-    const expandHint = messageDiv.querySelector('.thinking-expand-hint');
-    if (expandHint) {
-        expandHint.style.display = 'none';
     }
 
-    // 更新内容
-    messageContent.innerHTML = formatMessage(version.content);
-    messageContent.dataset.content = version.content;
-
-    // 更新引用来源（如果有）
-    const existingAnnotations = messageDiv.querySelector('.message-annotations');
-    if (existingAnnotations) {
-        existingAnnotations.remove();
-    }
-    if (version.annotations && version.annotations.length > 0) {
-        appendAnnotations(messageDiv, version.annotations);
-    }
-    // 添加思考内容（如果有）
-    if (version.reasoning) {
-        prependThinking(messageDiv, version.reasoning);
-    }
-
-    // 更新时间戳
-    const timestampSpan = messageDiv.querySelector('.message-timestamp');
-    if (timestampSpan && version.timestamp) {
-        timestampSpan.textContent = formatTimestamp(new Date(version.timestamp));
-    }
-
-    // 更新模型名称标签
-    const modelNameSpan = messageDiv.querySelector('.message-model-name');
-    if (modelNameSpan && version.modelName) {
-        // 获取当前 AI 消息编号（从模型名称标签中提取）
-        const currentLabel = modelNameSpan.textContent;
-        const match = currentLabel.match(/\|\s*(\d+)/);
-        const aiNumber = match ? match[1] : '1';
-        modelNameSpan.textContent = `${version.modelName} | ${aiNumber}`;
-    }
-
-    // 更新版本切换器
-    updateVersionSwitcher(messageDiv, messageData);
-
-    // 链式版本切换：根据新版本的timestamp，显示/隐藏后续消息
-    chainVersionSwitch(messageIndex, version.timestamp);
-
-    // 保存消息
+    // 保存并刷新整个话题（applyTimelineVisibility 自动处理显隐）
     await saveMessages(messages);
+    await switchAgentAndTopic(currentAgentId, currentTopicId);
 }
 
-// 链式版本切换：当消息A切换版本时，后续消息根据 prevId 显示/隐藏
-// sourceIndex: 切换版本的消息在 messages 数组中的索引
-// newTimestamp: 切换后的版本 timestamp
-function chainVersionSwitch(sourceIndex, newTimestamp) {
-    const sourceMsg = messages[sourceIndex];
-    if (!sourceMsg || sourceMsg.role !== 'assistant') return;
+// chainVersionSwitch 已删除，版本切换后统一用 switchAgentAndTopic 刷新
 
-    // 维护可见版本 ID 集合
-    const visibleIds = new Set();
-    // 当前消息的当前版本 ID 加入集合（不直接加 msg.id，避免新旧链冲突）
-    visibleIds.add(getCurrentVersionId(sourceMsg));
-
-    // 遍历后续所有消息
-    for (let i = sourceIndex + 1; i < messages.length; i++) {
-        const msg = messages[i];
-        // 通过 ID 查找 DOM 元素（不依赖索引，因为 tool-call-card 不是 .message 类会导致索引错位）
-        const msgDiv = findMessageDivById(msg.id);
-
-        if (!msg) continue;
-
-        // 没有 prevId 的旧消息，保持原样
-        if (!msg.prevId) continue;
-
-        // 检查 prevId 是否在可见集合中
-        if (visibleIds.has(msg.prevId)) {
-            // 属于当前时间线 → 显示
-            if (msgDiv) msgDiv.style.display = '';
-
-            // 如果是AI消息且有 .message DOM
-            if (msg.role === 'assistant' && msgDiv && msgDiv.classList.contains('message')) {
-                // 如果有版本，切换到匹配当前时间线的版本
-                if (msg.versions && msg.versions.length > 1) {
-                    let matchedVersionIdx = -1;
-                    for (let v = 0; v < msg.versions.length; v++) {
-                        if (msg.versions[v].prevId === msg.prevId) {
-                            matchedVersionIdx = v;
-                            break;
-                        }
-                    }
-                    if (matchedVersionIdx === -1) {
-                        matchedVersionIdx = msg.currentVersionIndex || 0;
-                    }
-                    if (matchedVersionIdx !== (msg.currentVersionIndex || 0)) {
-                        msg.currentVersionIndex = matchedVersionIdx;
-                        const ver = msg.versions[matchedVersionIdx];
-                        msg.content = ver.content;
-                        msg.reasoning = ver.reasoning;
-                        msg.timestamp = ver.timestamp;
-                        msg.modelName = ver.modelName;
-                        if (ver.responseId) msg.responseId = ver.responseId;
-
-                        const msgContent = msgDiv.querySelector('.message-content');
-                        if (msgContent) {
-                            msgContent.innerHTML = formatMessage(ver.content);
-                            msgContent.dataset.content = ver.content;
-                        }
-                        const existingThinking = msgDiv.querySelector('.thinking-content');
-                        if (existingThinking) existingThinking.remove();
-                        const expandHint = msgDiv.querySelector('.thinking-expand-hint');
-                        if (expandHint) expandHint.style.display = 'none';
-                        if (ver.reasoning) prependThinking(msgDiv, ver.reasoning);
-                        const existingAnnotations = msgDiv.querySelector('.message-annotations');
-                        if (existingAnnotations) existingAnnotations.remove();
-                        if (ver.annotations && ver.annotations.length > 0) appendAnnotations(msgDiv, ver.annotations);
-                        const tsSpan = msgDiv.querySelector('.message-timestamp');
-                        if (tsSpan && ver.timestamp) tsSpan.textContent = formatTimestamp(new Date(ver.timestamp));
-                        const mnSpan = msgDiv.querySelector('.message-model-name');
-                        if (mnSpan && ver.modelName) {
-                            const currentLabel = mnSpan.textContent;
-                            const match = currentLabel.match(/\|\s*(\d+)/);
-                            const aiNumber = match ? match[1] : '1';
-                            mnSpan.textContent = `${ver.modelName} | ${aiNumber}`;
-                        }
-                        updateVersionSwitcher(msgDiv, msg);
-                    }
-                }
-            }
-            // 将当前消息的当前版本 ID 加入可见集合（不直接加 msg.id，避免新旧链冲突）
-            visibleIds.add(getCurrentVersionId(msg));
-        } else {
-            // 不属于当前时间线 → 隐藏
-            if (msgDiv) msgDiv.style.display = 'none';
-        }
-    }
-}
 
 // 获取当前时间线上可见的消息列表（用于构建API请求体）
 function getVisibleTimelineMessages() {
     const result = [];
     const visibleIds = new Set();
+    visibleIds.add(getTopicRootId());  // 种子：话题根节点
 
     for (let i = 0; i < messages.length; i++) {
         const msg = messages[i];
 
-        if (!msg.prevId) {
-            // 没有 prevId 的消息（旧消息或第一条），默认可见
-            result.push(msg);
-            visibleIds.add(getCurrentVersionId(msg));
-            continue;
-        }
-
         // 检查 prevId 是否在可见集合中
-        if (visibleIds.has(msg.prevId)) {
+        if (msg.prevId && visibleIds.has(msg.prevId)) {
             result.push(msg);
             visibleIds.add(getCurrentVersionId(msg));
         }
-        // 不在可见集合中的消息不加入result
     }
     return result;
 }
@@ -7664,21 +7531,15 @@ function getVisibleTimelineMessages() {
 function applyTimelineVisibility(msgs, elements, startIdx) {
     // 维护可见版本 ID 集合，逐条传递
     const visibleIds = new Set();
+    visibleIds.add(getTopicRootId());  // 种子：话题根节点
 
     for (let i = 0; i < msgs.length; i++) {
         const msg = msgs[i];
         const el = elements[i - startIdx];
 
-        if (!msg.prevId) {
-            // 没有 prevId 的消息（旧消息或第一条），默认可见
-            visibleIds.add(getCurrentVersionId(msg));
-            if (!el) continue;
-            continue;
-        }
-
         // 被跳过的消息（无 DOM 元素），仍需追踪 id 以保持链路不断
         if (!el) {
-            if (visibleIds.has(msg.prevId)) {
+            if (msg.prevId && visibleIds.has(msg.prevId)) {
                 visibleIds.add(getCurrentVersionId(msg));
             } else if (i < startIdx) {
                 // 分页截断点之前的消息：prevId 指向更早未渲染的消息
@@ -7689,7 +7550,7 @@ function applyTimelineVisibility(msgs, elements, startIdx) {
         }
 
         // 检查 prevId 是否在可见集合中
-        if (visibleIds.has(msg.prevId)) {
+        if (msg.prevId && visibleIds.has(msg.prevId)) {
             // 属于当前时间线 → 显示
             el.style.display = '';
             visibleIds.add(getCurrentVersionId(msg));
@@ -8711,7 +8572,7 @@ function createAssistantMessage(content, reasoning, responseId, annotations, pre
         modelName: selectedModel,
         responseId: responseId,
         annotations: annotations || null,
-        prevId: prevId || null
+        prevId: prevId || getTopicRootId()
     };
 }
 
@@ -8725,7 +8586,7 @@ function createVersion(content, reasoning, responseId, annotations, prevId) {
         modelName: selectedModel,
         responseId: responseId,
         annotations: annotations || null,
-        prevId: prevId || null
+        prevId: prevId || getTopicRootId()
     };
 }
 
@@ -9392,27 +9253,7 @@ let _streamScrollIntervalId = null;
 
 function _doStreamScroll() {
     if (isUserAtBottom()) {
-        const targetPosition = chatContainer.scrollHeight - chatContainer.clientHeight;
-        const startPosition = chatContainer.scrollTop;
-        const distance = targetPosition - startPosition;
-        if (distance < 20) return;
-        if (_streamScrollAnimId) cancelAnimationFrame(_streamScrollAnimId);
-        const duration = 800;
-        const startTime = performance.now();
-        function animate(now) {
-            const elapsed = now - startTime;
-            if (elapsed >= duration) {
-                chatContainer.scrollTop = targetPosition;
-                _streamScrollAnimId = null;
-                return;
-            }
-            const t = elapsed / duration;
-            const eased = 1 - Math.pow(1 - t, 3);
-            const expectedPos = startPosition + distance * eased;
-            chatContainer.scrollTop = expectedPos;
-            _streamScrollAnimId = requestAnimationFrame(animate);
-        }
-        _streamScrollAnimId = requestAnimationFrame(animate);
+        chatContainer.scrollTop = chatContainer.scrollHeight - chatContainer.clientHeight;
     }
 }
 
@@ -9456,8 +9297,6 @@ let headerVisibleInLandscape = false;
 let headerHideTimer = null;
 const header = document.querySelector('.header');
 
-let shouldInitAdSdk = false; // 标记是否需要初始化广告SDK
-
 // Android 端初始化时调用此函数，标识当前为移动端环境
 window.setMobileMode = function () {
     isMobileMode = true;
@@ -9469,20 +9308,6 @@ window.setMobileMode = function () {
     if (window.AndroidBridge && typeof AndroidBridge.setLockPortrait === 'function') {
         AndroidBridge.setLockPortrait(lockPortrait);
     }
-
-    // 标记需要初始化广告SDK
-    shouldInitAdSdk = true;
-
-    // 如果引导已完成，立即初始化广告SDK（用于非首次启动的情况）
-    const hasCompleted = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
-    if (hasCompleted === 'true') {
-        initializeAdSdk();
-    }
-};
-
-// 广告 SDK 就绪回调
-window.onAdSdkReady = function () {
-    // 广告 SDK 初始化成功回调
 };
 
 // 显示权限说明（由原生端调用）
@@ -9532,17 +9357,20 @@ function initPermissionExplanationButtons() {
     }
 }
 
-// 页面加载完成后初始化权限说明按钮
-document.addEventListener('DOMContentLoaded', function () {
-    initPermissionExplanationButtons();
-});
-
-// 初始化广告 SDK 测试函数
+// 初始化广告 SDK（开屏广告依赖）
 function initAdSdkForTest() {
     if (window.AndroidBridge) {
         window.AndroidBridge.initAdSdk();
     }
 }
+function initializeAdSdk() {
+    setTimeout(() => { initAdSdkForTest(); }, 1);
+}
+
+// 页面加载完成后初始化权限说明按钮
+document.addEventListener('DOMContentLoaded', function () {
+    initPermissionExplanationButtons();
+});
 
 // 更新 container 的 marginTop
 function updateContainerMarginTop() {
@@ -9983,11 +9811,19 @@ chatContainer.addEventListener('click', (e) => {
             if (copyBtn) {
                 copyBtn.addEventListener('click', () => {
                     const textToCopy = '工具: ' + toolName + '\n参数: ' + JSON.stringify(toolArgs, null, 2) + '\n结果: ' + (typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult));
-                    if (navigator.clipboard) {
-                        navigator.clipboard.writeText(textToCopy).then(() => showToast('已复制'));
-                    } else if (window.AndroidBridge && AndroidBridge.copyToClipboard) {
+                    // 优先走 AndroidBridge（WebView 最可靠）
+                    if (window.AndroidBridge && AndroidBridge.copyToClipboard) {
                         AndroidBridge.copyToClipboard(textToCopy);
                         showToast('已复制');
+                    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(textToCopy).then(() => showToast('已复制')).catch(() => {
+                            const ta = document.createElement('textarea');
+                            ta.value = textToCopy;
+                            document.body.appendChild(ta);
+                            ta.select();
+                            try { document.execCommand('copy'); showToast('已复制'); } catch (_) { showToast('复制失败'); }
+                            document.body.removeChild(ta);
+                        });
                     } else {
                         const ta = document.createElement('textarea');
                         ta.value = textToCopy;
@@ -10091,9 +9927,6 @@ function showSettings() {
     // 更新获取KEY按钮状态
     updateGetApiKeyBtnState();
 
-    // 更新广告点数显示
-    updateAdPointsDisplay();
-
     settingsModal.classList.add('active');
 }
 
@@ -10107,7 +9940,6 @@ function showSettingsWithFade(callback) {
     updateAIProviderSelectDisplay();
     updateModelSelectDisplay();
     updateGetApiKeyBtnState();
-    updateAdPointsDisplay();
 
     const settingsInner = settingsModal.querySelector('.modal.fullscreen-modal');
     settingsModal.classList.add('active');
@@ -10125,184 +9957,6 @@ function showSettingsWithFade(callback) {
         setTimeout(() => callback(), 300);
     }
 }
-async function updateAdPointsDisplay() {
-    const adPointsDisplay = document.getElementById('adPointsDisplay');
-    const adPointsThreshold = document.getElementById('adPointsThreshold');
-    const adPointsThresholdText = document.getElementById('adPointsThresholdText');
-    
-    // 确保 UsagePoints 已加载
-    await ensureUsagePoints();
-
-    // 更新点数
-    if (adPointsDisplay) {
-        const points = UsagePoints.getPoints();
-        console.log("adsdk", '已更新, 点数:', points);
-        adPointsDisplay.textContent = points.toString();
-    }
-
-    // 更新阈值显示
-    const threshold = UsagePoints.getThreshold();
-    if (adPointsThreshold) {
-        adPointsThreshold.textContent = '/ ' + threshold;
-    }
-    if (adPointsThresholdText) {
-        adPointsThresholdText.textContent = threshold;
-    }
-}
-
-// 刷新广告点数按钮点击事件
-document.addEventListener('DOMContentLoaded', function () {
-    const refreshBtn = document.getElementById('refreshAdPointsBtn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', function () {
-            updateAdPointsDisplay();
-        });
-    }
-});
-
-// ===== 彩蛋：点击版本号开启/关闭广告点数覆盖 =====
-document.addEventListener('DOMContentLoaded', function () {
-    const drawerTitle = document.getElementById('drawerTitle');
-    if (drawerTitle) {
-        let versionClickCount = 0;
-        let versionClickTimer = null;
-
-        function showEggToast(html, color) {
-            let toast = document.getElementById('easterEggToast');
-            if (!toast) {
-                toast = document.createElement('div');
-                toast.id = 'easterEggToast';
-                toast.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:#4CAF50;padding:20px 40px;border-radius:12px;font-size:18px;font-weight:600;z-index:99999;transition:opacity 0.4s;text-align:center;line-height:1.6;';
-                document.body.appendChild(toast);
-            }
-            toast.innerHTML = html;
-            toast.style.color = color || '#4CAF50';
-            toast.style.opacity = '1';
-            clearTimeout(toast._removeTimer);
-            clearTimeout(toast._fadeTimer);
-            toast._fadeTimer = setTimeout(function () {
-                toast.style.opacity = '0';
-                toast._removeTimer = setTimeout(function () {
-                    if (toast.parentNode) toast.parentNode.removeChild(toast);
-                }, 400);
-            }, 2500);
-        }
-
-        function showPasswordDialog(onSuccess, onCancel) {
-            // 遮罩
-            let overlay = document.getElementById('adpsDialogOverlay');
-            if (overlay) overlay.parentNode.removeChild(overlay);
-            overlay = document.createElement('div');
-            overlay.id = 'adpsDialogOverlay';
-            overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
-            // 对话框
-            const dialog = document.createElement('div');
-            const _isDark = (typeof currentBgTheme !== 'undefined' && currentBgTheme === 'dark');
-            dialog.style.cssText = 'width:calc(100% - 48px);max-width:360px;background:' + (_isDark ? '#1e1e1e' : '#fff') + ';border-radius:16px;padding:24px;box-shadow:0 4px 24px rgba(0,0,0,0.15);';
-            dialog.innerHTML =
-                '<h3 style="margin:0 0 8px;font-size:18px;color:' + (_isDark ? '#fff' : '#222') + ';text-align:center;">进群获取免广告密码</h3>' +
-                '<p style="margin:0 0 16px;font-size:13px;color:#999;text-align:center;">请输入免广告密码</p>' +
-                '<input type="password" id="adpsInput" placeholder="输入密码" style="width:100%;box-sizing:border-box;padding:12px 14px;font-size:16px;border:1px solid #ddd;border-radius:8px;outline:none;margin-bottom:16px;background:' + (_isDark ? '#2a2a2a' : '#f5f5f5') + ';color:' + (_isDark ? '#fff' : '#222') + ';" />' +
-                '<div style="display:flex;gap:12px;">' +
-                '<button id="adpsCancelBtn" style="flex:1;padding:10px;border:none;border-radius:8px;font-size:15px;background:' + (_isDark ? '#333' : '#f0f0f0') + ';color:' + (_isDark ? '#ccc' : '#666') + ';cursor:pointer;">取消</button>' +
-                '<button id="adpsConfirmBtn" style="flex:1;padding:10px;border:none;border-radius:8px;font-size:15px;background:var(--primary-color,#4CAF50);color:#fff;cursor:pointer;">确认</button>' +
-                '</div>';
-            overlay.appendChild(dialog);
-            document.body.appendChild(overlay);
-
-            const input = dialog.querySelector('#adpsInput');
-            const cancelBtn = dialog.querySelector('#adpsCancelBtn');
-            const confirmBtn = dialog.querySelector('#adpsConfirmBtn');
-
-            // 自动聚焦
-            setTimeout(function () { input.focus(); }, 100);
-
-            function closeDialog() {
-                if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-            }
-
-            function handleConfirm() {
-                var userInput = input.value.trim();
-                closeDialog();
-                if (onSuccess) onSuccess(userInput);
-            }
-
-            function handleCancel() {
-                closeDialog();
-                if (onCancel) onCancel();
-            }
-
-            confirmBtn.addEventListener('click', handleConfirm);
-            cancelBtn.addEventListener('click', handleCancel);
-            input.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') handleConfirm();
-                if (e.key === 'Escape') handleCancel();
-            });
-            overlay.addEventListener('click', function (e) {
-                if (e.target === overlay) handleCancel();
-            });
-        }
-
-        drawerTitle.addEventListener('click', function () {
-            versionClickCount++;
-            clearTimeout(versionClickTimer);
-            // 每次点击后重置计时器，超过2秒未点击则清零
-            versionClickTimer = setTimeout(function () {
-                versionClickCount = 0;
-            }, 2000);
-
-            // 检查当前是否已开启彩蛋
-            const isOverrideActive = !!localStorage.getItem('cnai_threshold_override');
-
-            // 已开启：点3次关闭；未开启：点9次开启
-            const requiredClicks = isOverrideActive ? 3 : 9;
-
-            if (versionClickCount >= requiredClicks) {
-                versionClickCount = 0;
-                clearTimeout(versionClickTimer);
-
-                if (isOverrideActive) {
-                    // 关闭彩蛋：移除覆盖，恢复默认阈值
-                    localStorage.removeItem('cnai_threshold_override');
-                    console.log('[EasterEgg] 彩蛋已关闭，恢复默认广告阈值');
-                    showEggToast('🔔 广告已恢复！<br><span style="font-size:13px;font-weight:400;color:#aaa;">点数上限已恢复为默认值</span>');
-                    if (typeof updateAdPointsDisplay === 'function') updateAdPointsDisplay();
-                } else {
-                    // 未开启：弹出密码输入框
-                    showPasswordDialog(
-                        function (userInput) {
-                            // 从Android端获取密码，Web端无密码则直接失败
-                            var serverPassword = '';
-                            try {
-                                if (window.AndroidBridge && typeof AndroidBridge.getAdps === 'function') {
-                                    serverPassword = AndroidBridge.getAdps();
-                                }
-                            } catch (e) {
-                                console.error('[EasterEgg] 获取密码失败:', e);
-                            }
-
-                            if (serverPassword && userInput === serverPassword) {
-                                // 密码正确，开启彩蛋
-                                localStorage.setItem('cnai_threshold_override', '9999999999');
-                                console.log('[EasterEgg] 密码正确，彩蛋已开启');
-                                showEggToast('🎉 广告已永久关闭！<br><span style="font-size:13px;font-weight:400;color:#aaa;">点数上限已设置为 9,999,999,999</span>');
-                                if (typeof updateAdPointsDisplay === 'function') updateAdPointsDisplay();
-                            } else {
-                                // 密码错误
-                                console.log('[EasterEgg] 密码错误');
-                                showEggToast('❌ 密码错误', '#ff5252');
-                            }
-                        },
-                        function () {
-                            console.log('[EasterEgg] 用户取消输入密码');
-                        }
-                    );
-                }
-            }
-        });
-    }
-});
-
 function hideSettings() {
     console.log('[动画锁] hideSettings', Date.now());
     const settingsInner = settingsModal.querySelector('.modal.fullscreen-modal');
@@ -10958,6 +10612,10 @@ function buildRequestBody(systemPrompt = null, targetMessage = null, knowledgeCo
         }
         if (msg.tool_call_id) apiMsg.tool_call_id = msg.tool_call_id;
         if (msg.name) apiMsg.name = msg.name;
+        // DeepSeek/Kimi 深度思考模式要求 assistant 消息带 reasoning_content
+        if (msg.role === 'assistant' && ['deepseek', 'kimi'].includes(currentAIProvider)) {
+            apiMsg.reasoning_content = msg.reasoning || '';
+        }
         return apiMsg;
     }));
 
@@ -12406,12 +12064,9 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
         localStorage.setItem('cnai_topic_usage_info_' + getTopicMessagesKey(), JSON.stringify(topicUsageInfo));
     }
 
-    // 如果是刷新/重发，刷新后续消息的时间线显示
+    // 如果是刷新/重发，保存新版本即可（流式已渲染完毕，无需刷新话题）
     if (targetMessage && targetMessage.versions) {
-        const targetMsgIndex = findMessageIndexById(targetMessage.id);
-        if (targetMsgIndex >= 0) {
-            chainVersionSwitch(targetMsgIndex, targetMessage.timestamp);
-        }
+        await saveMessages(messages);
     }
 
     // 更新重发按钮显示状态
@@ -12772,7 +12427,7 @@ async function sendToPCChat(messageContent, displayContent, now) {
                 tool_name: msg.tool_name || '',
                 tool_args: toolArgs,
                 timestamp: Date.now(),
-                prevId: lastMsg ? lastMsg.id : null
+                prevId: lastMsg ? lastMsg.id : getTopicRootId()
             });
             await saveMessages(messages);
             scrollToBottom();
@@ -12972,20 +12627,14 @@ async function sendMessage() {
     if (isSending) return;
     if (!apiKey && currentAgentId !== PC_AGENT_ID) { showToast('请先设置 API Key'); showSettingsWithFade(() => { openModalWithFade(document.getElementById('aiProviderSettingsModal')); }); return; }
 
-    // 用户发送消息时，触发广告权限申请（如果还没申请过）
-    // 电脑端智能体跳过广告
+    // 权限申请 + 使用点统计
     if (currentAgentId !== PC_AGENT_ID) {
-        console.log('[adsdk] === JS: 发送消息，准备调用 requestAdPermissionNow ===');
+        // 触发权限申请（开屏广告依赖）
         if (window.AndroidBridge && window.AndroidBridge.requestAdPermissionNow) {
-            console.log('[adsdk] JS: 调用 AndroidBridge.requestAdPermissionNow()');
             window.AndroidBridge.requestAdPermissionNow();
-        } else {
-            console.log('[adsdk] JS: AndroidBridge.requestAdPermissionNow 不存在');
         }
-
-        // 使用点检查（非阻塞，广告与消息生成并行）
         await ensureUsagePoints();
-        UsagePoints.addPoint(1); // 内部自动判断是否触发广告
+        UsagePoints.addPoint(1);
     }
 
     // 检查是否需要生成话题名称（话题名称为"新话题"时才生成）
@@ -13131,7 +12780,7 @@ async function sendMessage() {
     // 获取上一条AI消息的ID，用于版本链式切换
     const prevAiId = getLastVisibleMsgIdByRole('assistant');
 
-    messages.push({ id: userMessageId, role: 'user', content: messageContent, displayContent: displayContent, timestamp: now.getTime(), prevId: prevAiId });
+    messages.push({ id: userMessageId, role: 'user', content: messageContent, displayContent: displayContent, timestamp: now.getTime(), prevId: prevAiId || getTopicRootId() });
 
     // 发送消息后隐藏智能体标签栏（必须在 messages.push 之后调用）
     updateAgentTagsBarVisibility();
@@ -13396,6 +13045,18 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
 
     // finally 逻辑
     {
+        // 生成结束时播放提示音（复用确认操作提示音开关和音量）
+        if (confirmSoundSwitch && confirmSoundSwitch.checked) {
+            try {
+                if (!_confirmAudio) {
+                    _confirmAudio = new Audio(NOTIFICATION_SOUND_DATA);
+                }
+                _confirmAudio.volume = confirmSoundVolume;
+                _confirmAudio.currentTime = 0;
+                _confirmAudio.play().catch(function(e){ console.warn('[gen-end-sound]', e); });
+            } catch (e) {}
+        }
+
         // 释放屏幕常亮
         releaseKeepScreenOn();
         isSending = false;
@@ -13403,6 +13064,9 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
         stopBtn.style.display = 'none';  // 隐藏停止按钮
         messageInput.placeholder = '输入消息...';
         abortController = null;
+        // 重置重发状态
+        resendUserId = null;
+        skipNextCountUpdate = false;
         // 停止定时滚动并最终滚一次
         stopStreamScroll();
         // 回复完成后，沉浸模式重新计时隐藏
@@ -13468,6 +13132,9 @@ function stopGenerating() {
     isSending = false;
     sendBtn.disabled = false;
     stopBtn.style.display = 'none';
+    // 重置重发状态，避免残留影响下次发送
+    resendUserId = null;
+    skipNextCountUpdate = false;
     // 停止时立即渲染全部内容
     flushStreamTypewriter();
     // 渲染完成后停止滚动定时器并最后滚一次
@@ -13503,6 +13170,62 @@ if (clearBtn) {
     clearBtn.addEventListener('click', () => {
         deleteTopic(currentTopicId);
     });
+}
+
+// 级联删除：从指定 id 出发，删除所有依赖的后续消息 + 孤儿清理
+function cascadeDeleteMessages(startSearchIds, startIndex) {
+    const toDelete = new Set();
+    let searchSet = new Set(startSearchIds);
+
+    // 级联查找
+    while (searchSet.size > 0) {
+        const nextIds = [];
+        for (let i = startIndex; i < messages.length; i++) {
+            if (toDelete.has(i)) continue;
+            const msg = messages[i];
+            if (msg.prevId && searchSet.has(msg.prevId)) {
+                toDelete.add(i);
+                if (msg.versions && msg.versions.length > 0) {
+                    msg.versions.forEach(v => { if (v.id) nextIds.push(v.id); });
+                }
+                nextIds.push(msg.id);
+            }
+        }
+        searchSet = new Set(nextIds);
+    }
+
+    // 清理断链的孤儿消息（rootId 不算断链）
+    const rootId = getTopicRootId();
+    let foundOrphans = true;
+    while (foundOrphans) {
+        foundOrphans = false;
+        const remainingIds = new Set([rootId]);
+        for (let i = 0; i < messages.length; i++) {
+            if (!toDelete.has(i)) {
+                remainingIds.add(messages[i].id);
+                if (messages[i].versions) {
+                    messages[i].versions.forEach(v => { if (v.id) remainingIds.add(v.id); });
+                }
+            }
+        }
+        for (let i = 0; i < messages.length; i++) {
+            if (toDelete.has(i)) continue;
+            const msg = messages[i];
+            if (msg.prevId && !remainingIds.has(msg.prevId)) {
+                toDelete.add(i);
+                foundOrphans = true;
+            }
+        }
+    }
+
+    // 执行删除（从后往前 splice）
+    if (toDelete.size > 0) {
+        const deleteIndices = Array.from(toDelete).sort((a, b) => a - b);
+        for (let i = deleteIndices.length - 1; i >= 0; i--) {
+            messages.splice(deleteIndices[i], 1);
+        }
+    }
+    return toDelete.size;
 }
 
 // 删除消息
@@ -13593,73 +13316,11 @@ async function deleteMessage(messageDiv, index) {
         await saveMessages(messages);
         showToast('已删除该版本');
 
-        // 级联删除：找到所有 prevId 指向被删版本 id 的后续消息
-        const deletedVersionId = deletedVersion.id;
-        const toDelete = new Set();
-        let searchIds = [deletedVersionId];
-        while (searchIds.length > 0) {
-            const nextIds = [];
-            for (let i = actualIndex + 1; i < messages.length; i++) {
-                if (toDelete.has(i)) continue;
-                const msg = messages[i];
-                if (msg.prevId && searchIds.includes(msg.prevId)) {
-                    toDelete.add(i);
-                    // 收集这条消息的版本 id 用于继续级联
-                    if (msg.versions && msg.versions.length > 0) {
-                        msg.versions.forEach(v => { if (v.id) nextIds.push(v.id); });
-                    }
-                    nextIds.push(msg.id);
-                }
-            }
-            searchIds = nextIds;
-        }
-
-        // 清理断链的孤儿消息（prevId 指向的消息已不存在于数组中）
-        let foundOrphans = true;
-        while (foundOrphans) {
-            foundOrphans = false;
-            const remainingIds = new Set();
-            for (let i = 0; i < messages.length; i++) {
-                if (!toDelete.has(i)) {
-                    remainingIds.add(messages[i].id);
-                    if (messages[i].versions) {
-                        messages[i].versions.forEach(v => { if (v.id) remainingIds.add(v.id); });
-                    }
-                }
-            }
-            for (let i = 0; i < messages.length; i++) {
-                if (toDelete.has(i)) continue;
-                const msg = messages[i];
-                if (msg.prevId && !remainingIds.has(msg.prevId)) {
-                    toDelete.add(i);
-                    foundOrphans = true;
-                }
-            }
-        }
-
-        if (toDelete.size > 0) {
-            const deleteIndices = Array.from(toDelete).sort((a, b) => a - b);
+        // 级联删除：后续依赖被删版本的消息 + 孤儿清理
+        const deletedCount = cascadeDeleteMessages([deletedVersion.id], actualIndex + 1);
+        if (deletedCount > 0) {
             updateCacheOptimizeCount();
-            // messages 数组删除（从后往前 splice）
-            for (let i = deleteIndices.length - 1; i >= 0; i--) {
-                messages.splice(deleteIndices[i], 1);
-            }
             updateAiMessageNumbers();
-        }
-
-        // 刷新后续消息的时间线显示（通过 ID 定位，不依赖索引）
-        const visibleIds = new Set();
-        visibleIds.add(getCurrentVersionId(messageData));
-        for (let i = 0; i < messages.length; i++) {
-            const msg = messages[i];
-            const el = findMessageDivById(msg.id);
-            if (!el) continue;
-            if (!msg.prevId || visibleIds.has(msg.prevId)) {
-                el.style.display = '';
-                visibleIds.add(getCurrentVersionId(msg));
-            } else {
-                el.style.display = 'none';
-            }
         }
 
         // 删除后重新渲染当前话题（内部会 saveMessages + 从DB重新加载）
@@ -13667,67 +13328,16 @@ async function deleteMessage(messageDiv, index) {
         return;
     }
 
-    // 统一删除：找到所有需要删除的消息
-    const toDelete = new Set();
-    toDelete.add(actualIndex);
-
-    // 从起始消息的 id + 所有版本 id 出发，级联查找后续依赖的消息
-    let searchIds = [];
-    searchIds.push(messageData.id);
+    // 统一删除：从起始消息的 id + 所有版本 id 出发，级联删除
+    const searchIds = [messageData.id];
     if (messageData.versions && messageData.versions.length > 0) {
         messageData.versions.forEach(v => { if (v.id) searchIds.push(v.id); });
     }
-    searchIds = [...new Set(searchIds)];
-
-    while (searchIds.length > 0) {
-        const nextIds = [];
-        for (let i = 0; i < messages.length; i++) {
-            if (toDelete.has(i)) continue;
-            const msg = messages[i];
-            if (msg.prevId) {
-                if (searchIds.includes(msg.prevId)) {
-                    toDelete.add(i);
-                    nextIds.push(msg.id);
-                }
-            }
-            // 没有 prevId 的旧消息不跟随删除
-        }
-        searchIds = nextIds;
-    }
-
-    // 清理断链的孤儿消息（prevId 指向的消息已不存在于数组中）
-    let foundOrphans = true;
-    while (foundOrphans) {
-        foundOrphans = false;
-        const remainingIds = new Set();
-        for (let i = 0; i < messages.length; i++) {
-            if (!toDelete.has(i)) {
-                remainingIds.add(messages[i].id);
-                if (messages[i].versions) {
-                    messages[i].versions.forEach(v => { if (v.id) remainingIds.add(v.id); });
-                }
-            }
-        }
-        for (let i = 0; i < messages.length; i++) {
-            if (toDelete.has(i)) continue;
-            const msg = messages[i];
-            if (msg.prevId && !remainingIds.has(msg.prevId)) {
-                toDelete.add(i);
-                foundOrphans = true;
-            }
-        }
-    }
-
-    const deleteIndices = Array.from(toDelete).sort((a, b) => a - b);
-    const deleteCount = deleteIndices.length;
+    messages.splice(actualIndex, 1);  // 先删除起始消息
+    const cascadedCount = cascadeDeleteMessages(searchIds, 0);
+    const deleteCount = cascadedCount + 1;  // +1 是起始消息本身
 
     updateCacheOptimizeCount();
-
-    // messages 数组删除（从后往前 splice）
-    for (let i = deleteIndices.length - 1; i >= 0; i--) {
-        messages.splice(deleteIndices[i], 1);
-    }
-    // saveMessages 已由 switchAgentAndTopic 内部执行，此处不再重复保存
 
     showToast(`已删除 ${deleteCount} 条消息`);
     // 删除后重新渲染当前话题（内部会 saveMessages + 从DB重新加载）
@@ -14321,7 +13931,6 @@ settingsBtn.addEventListener('click', () => {
     updateAIProviderSelectDisplay();
     updateModelSelectDisplay();
     updateGetApiKeyBtnState();
-    updateAdPointsDisplay();
 
     settingsModal.classList.add('active');
 
@@ -14531,7 +14140,7 @@ function updateUsagePointsDisplay() {
     const valEl = document.getElementById('usagePointsValue');
     if (!group || !valEl) return;
     const points = typeof UsagePoints !== 'undefined' ? UsagePoints.getPoints() : (parseInt(localStorage.getItem('cnai_usage_points')) || 0);
-    const threshold = typeof UsagePoints !== 'undefined' ? UsagePoints.getThreshold() : 10;
+    const threshold = typeof UsagePoints !== 'undefined' ? UsagePoints.getThreshold() : 999;
     valEl.textContent = points + ' / ' + threshold;
     group.style.display = '';
 }
@@ -14557,11 +14166,6 @@ function loadWorkPath() {
 }
 
 if (expertModeSwitch) expertModeSwitch.addEventListener('change', function() {
-    if (expertModeSwitch.checked) {
-        if (window.AndroidBridge && window.AndroidBridge.requestAdPermissionNow) {
-            window.AndroidBridge.requestAdPermissionNow();
-        }
-    }
     saveExpertMode();
 });
 if (workPathDisplay) {
@@ -14619,150 +14223,6 @@ if (pcWorkPathDisplay) {
     });
 }
 loadPcWorkPath();
-
-// 信息流广告
-const feedAdGroup = document.getElementById('feedAdGroup');
-const feedAdContainer = document.getElementById('feedAdContainer');
-const feedAdLoading = document.getElementById('feedAdLoading');
-
-// 专家模式开关联动广告区域
-const _origSaveExpertMode = saveExpertMode;
-saveExpertMode = function() {
-    _origSaveExpertMode();
-    if (expertModeSwitch.checked) {
-        // 添加磨砂遮罩
-        const subInner = document.querySelector('#expertModeSettingsModal .modal.fullscreen-modal');
-        if (subInner) {
-            let blurMask = subInner.querySelector('.ad-blur-mask');
-            if (!blurMask) {
-                blurMask = document.createElement('div');
-                blurMask.className = 'ad-blur-mask';
-                blurMask.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:10;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);background:rgba(0,0,0,0.05);transition:opacity 0.3s ease;pointer-events:none;';
-                subInner.style.position = 'relative';
-                subInner.appendChild(blurMask);
-            }
-            blurMask.style.opacity = '1';
-        }
-        feedAdGroup.style.display = '';
-        showFeedAdGroup('feedAdGroup', 'feedAdContainer');
-    } else {
-        hideFeedAdGroup('feedAdGroup');
-    }
-};
-
-const _origLoadExpertMode = loadExpertMode;
-loadExpertMode = function() {
-    _origLoadExpertMode();
-    feedAdGroup.style.display = expertModeSwitch.checked ? '' : 'none';
-    // 不在这里加载广告，等页面真正可见时再加载
-};
-
-function showFeedAdGroup(groupId, containerId) {
-    const group = document.getElementById(groupId);
-    if (!group) return;
-    group.style.display = '';
-    group.style.maxHeight = '0';
-    group.style.opacity = '0';
-    group.style.overflow = 'hidden';
-    void group.offsetHeight;
-    group.style.transition = 'max-height 0.3s ease, opacity 0.3s ease';
-    group.style.maxHeight = '500px';
-    group.style.opacity = '1';
-    if (!window._feedAdSdkReady && window.AndroidBridge && typeof AndroidBridge.initAdSdk === 'function') {
-        AndroidBridge.initAdSdk();
-    }
-    loadFeedAd(containerId);
-}
-
-function hideFeedAdGroup(groupId) {
-    const group = document.getElementById(groupId);
-    if (!group) return;
-    group.style.transition = 'max-height 0.2s ease, opacity 0.2s ease';
-    group.style.maxHeight = '0';
-    group.style.opacity = '0';
-    setTimeout(() => { group.style.display = 'none'; }, 200);
-    destroyFeedAd();
-}
-
-let _currentAdContainerId = 'feedAdContainer';
-
-function loadFeedAd(containerId) {
-    _currentAdContainerId = containerId || 'feedAdContainer';
-    const loadingEl = document.getElementById(_currentAdContainerId.replace('Container', 'Loading'));
-    if (!window.AndroidBridge || typeof AndroidBridge.loadFeedAd !== 'function') {
-        if (loadingEl) loadingEl.textContent = '广告未启用';
-        return;
-    }
-    try {
-        if (loadingEl) {
-            loadingEl.style.display = 'flex';
-            loadingEl.textContent = '加载中...';
-        }
-        AndroidBridge.loadFeedAd(_currentAdContainerId);
-    } catch(e) {
-        if (loadingEl) loadingEl.textContent = '加载失败';
-    }
-}
-
-function destroyFeedAd() {
-    if (window.AndroidBridge && typeof AndroidBridge.destroyFeedAd === 'function') {
-        try { AndroidBridge.destroyFeedAd(); } catch(e) {}
-    }
-}
-
-// Android端回调：广告加载成功
-window.onFeedAdLoaded = function() {
-    const loadingEl = document.getElementById(_currentAdContainerId.replace('Container', 'Loading'));
-    if (loadingEl) loadingEl.style.display = 'none';
-    removeAdBlurMask();
-};
-
-// 信息流广告加载重试计数
-let _feedAdRetryCount = 0;
-const FEED_AD_MAX_RETRY = 5;
-
-// Android端回调：广告加载成功
-window.onFeedAdLoaded = function() {
-    _feedAdRetryCount = 0; // 加载成功，重置计数
-    const loadingEl = document.getElementById(_currentAdContainerId.replace('Container', 'Loading'));
-    if (loadingEl) loadingEl.style.display = 'none';
-    removeAdBlurMask();
-};
-
-// Android端回调：广告加载失败
-window.onFeedAdError = function(msg) {
-    _feedAdRetryCount++;
-    console.log('[AdSdk] 广告加载失败(' + _feedAdRetryCount + '/' + FEED_AD_MAX_RETRY + '):', msg);
-
-    if (_feedAdRetryCount >= FEED_AD_MAX_RETRY) {
-        console.log('[AdSdk] 已达到最大重试次数，停止重试');
-        const loadingEl = document.getElementById(_currentAdContainerId.replace('Container', 'Loading'));
-        if (loadingEl) loadingEl.textContent = '广告加载失败';
-        return;
-    }
-
-    const loadingEl = document.getElementById(_currentAdContainerId.replace('Container', 'Loading'));
-    if (loadingEl) loadingEl.textContent = '加载中...';
-    setTimeout(() => {
-        if (!window._feedAdSdkReady && window.AndroidBridge && typeof AndroidBridge.initAdSdk === 'function') {
-            try { AndroidBridge.initAdSdk(); } catch(e) {}
-        }
-        loadFeedAd(_currentAdContainerId);
-    }, 2000);
-};
-
-function removeAdBlurMask() {
-    document.querySelectorAll('.ad-blur-mask').forEach(mask => {
-        mask.style.opacity = '0';
-        setTimeout(() => mask.remove(), 300);
-    });
-}
-
-// Android端回调：SDK就绪，可以加载广告了
-window.onFeedAdSdkReady = function() {
-    window._feedAdSdkReady = true;
-    // 重试逻辑会自动加载，这里不再重复调用
-};
 
 // 覆盖完成后，调用新的 loadExpertMode
 loadExpertMode();
@@ -15223,32 +14683,6 @@ document.querySelectorAll('[data-sub-modal]').forEach(btn => {
         if (subModalId === 'advancedSettingsModal') {
             if (typeof updateUsagePointsDisplay === 'function') updateUsagePointsDisplay();
         }
-        // 需要加载广告的子弹窗配置
-        const adSubModals = {
-            'expertModeSettingsModal': { group: 'feedAdGroup', container: 'feedAdContainer', condition: () => expertModeSwitch.checked },
-            'pcConnectionSettingsModal': { group: 'pcFeedAdGroup', container: 'pcFeedAdContainer', condition: () => pcConnection && pcConnection.connected }
-        };
-        const adConfig = adSubModals[subModalId];
-        if (adConfig && adConfig.condition()) {
-            const adGroup = document.getElementById(adConfig.group);
-            if (adGroup) adGroup.style.display = '';
-            // 添加磨砂遮罩
-            let blurMask = subInner.querySelector('.ad-blur-mask');
-            if (!blurMask) {
-                blurMask = document.createElement('div');
-                blurMask.className = 'ad-blur-mask';
-                blurMask.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:10;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);background:rgba(0,0,0,0.05);transition:opacity 0.3s ease;pointer-events:none;';
-                subInner.style.position = 'relative';
-                subInner.appendChild(blurMask);
-            }
-            blurMask.style.opacity = '1';
-            setTimeout(() => {
-                if (!window._feedAdSdkReady && window.AndroidBridge && typeof AndroidBridge.initAdSdk === 'function') {
-                    AndroidBridge.initAdSdk();
-                }
-                loadFeedAd(adConfig.container);
-            }, 400);
-        }
         // 主设置页淡出（保持住，不重置）
         mainInner.style.transition = 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)';
         mainInner.style.transform = 'translateX(-10%)';
@@ -15279,9 +14713,9 @@ document.querySelectorAll('.sub-settings-back').forEach(btn => {
         // 主设置页淡入回来
         mainInner.style.transition = 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)';
         mainInner.style.transform = 'translateX(0)';
-        // 如果关闭的是有广告的页面，销毁广告
+        // 如果关闭的是专家模式或连接电脑页面
         if (subModal.id === 'expertModeSettingsModal' || subModal.id === 'pcConnectionSettingsModal') {
-            destroyFeedAd();
+            // 信息流广告已移除
         }
         setTimeout(() => {
             subModal.classList.remove('active');
@@ -17614,6 +17048,7 @@ async function importChatData(data) {
                 newMessages[0].prevId = lastMsg.id;
                 existingMsgs = [...existingMsgs, ...newMessages];
             } else {
+                newMessages[0].prevId = topicId + '_root';
                 existingMsgs = [...newMessages];
             }
             await new Promise(function(resolve) { saveMessagesToDB(targetKey, existingMsgs); setTimeout(resolve, 200); });
@@ -17640,6 +17075,8 @@ async function importChatData(data) {
         if (messages.length > 0 && newMessages.length > 0) {
             const lastMsg = messages[messages.length - 1];
             newMessages[0].prevId = lastMsg.id;
+        } else if (newMessages.length > 0) {
+            newMessages[0].prevId = getTopicRootId();
         }
         messages = [...messages, ...newMessages];
         await saveMessages(messages);
@@ -19354,16 +18791,6 @@ function hideQqQR() {
     if (overlay) overlay.classList.remove('active');
 }
 
-// 初始化广告SDK
-function initializeAdSdk() {
-    if (shouldInitAdSdk) {
-        shouldInitAdSdk = false;
-        setTimeout(() => {
-            initAdSdkForTest();
-        }, 1);
-    }
-}
-
 // 显示欢迎页面
 function showWelcomePage(score) {
     const welcomeOverlay = document.getElementById('welcomeOverlay');
@@ -20223,7 +19650,6 @@ cloudConnectBtn?.addEventListener('click', async () => {
             pcConnectBtnEl.textContent = '已连接';
             pcConnectBtnEl.disabled = false;
             showToast('公网连接成功，请输入配对码');
-            showFeedAdGroup('pcFeedAdGroup', 'pcFeedAdContainer');
         } else {
             cloudConnectBtn.textContent = '🔗 公网连接电脑';
             cloudConnectBtn.disabled = false;
@@ -20293,8 +19719,6 @@ pcConnectBtnEl?.addEventListener('click', async () => {
         pcConnectBtnEl.textContent = '已连接';
         pcConnectBtnEl.disabled = false;
         showToast('已连接到电脑，请输入配对码');
-        // 加载广告
-        showFeedAdGroup('pcFeedAdGroup', 'pcFeedAdContainer');
     } catch (e) {
         showToast('连接失败，请检查IP地址');
         pcConnectBtnEl.textContent = '连接';
@@ -20331,8 +19755,6 @@ pcDisconnectBtn?.addEventListener('click', () => {
     pcStatusText.textContent = '';
     pcConnectBtnEl.textContent = '连接';
     pcConnectBtnEl.disabled = false;
-    // 销毁广告
-    hideFeedAdGroup('pcFeedAdGroup');
     showToast('已断开连接');
 });
 
@@ -20378,3 +19800,115 @@ pcFileInput?.addEventListener('change', async () => {
     }
     pcFileInput.value = ''; // 清空，允许重复选择
 });
+
+// ==================== 选中文本高亮匹配（CSS Highlight API） ====================
+
+(function () {
+    if (typeof CSS === 'undefined' || !CSS.highlights) return; // 不支持则静默退出
+
+    // 动态注入样式（不改 CSS 文件）
+    // 根据主题注入不同颜色
+    function injectStyle() {
+        let existing = document.getElementById('text-highlight-style');
+        if (existing) existing.remove();
+        const style = document.createElement('style');
+        style.id = 'text-highlight-style';
+        const isDark = document.body.classList.contains('dark-theme');
+        const bg = isDark ? 'rgba(255, 193, 7, 0.35)' : 'rgba(255, 213, 79, 0.45)';
+        style.textContent = '::highlight(text-highlight) { background-color: ' + bg + '; color: inherit; }';
+        document.head.appendChild(style);
+    }
+    injectStyle();
+
+    // 监听主题变化，重新注入样式
+    const themeObserver = new MutationObserver(function () {
+        injectStyle();
+    });
+    themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    let _timer = null;
+
+    document.addEventListener('selectionchange', function () {
+        clearTimeout(_timer);
+        _timer = setTimeout(handle, 300);
+    });
+
+    document.addEventListener('mousedown', function (e) {
+        if (!CSS.highlights.has('text-highlight')) return;
+        if (e.target.closest('.message-content, .tool-call-card, .diff-card, .bs-panel')) return;
+        clearHighlight();
+    });
+
+    function handle() {
+        const sel = window.getSelection();
+        const text = sel.toString().trim();
+
+        if (text.length < 2 || text.length > 30) {
+            clearHighlight();
+            return;
+        }
+
+        // 选区必须在可高亮区域内
+        if (sel.rangeCount === 0) return;
+        let node = sel.getRangeAt(0).commonAncestorContainer;
+        if (node.nodeType === 3) node = node.parentNode;
+        if (!node || !node.closest || !node.closest('.message-content, .tool-call-card, .diff-card, .bs-panel')) return;
+
+        clearHighlight();
+
+        // 遍历所有消息内容，收集匹配的 Range
+        const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escaped, 'gi');
+        const ranges = [];
+        const skipTags = new Set(['SCRIPT', 'STYLE']);
+        const skipClasses = ['katex', 'katex-display', 'echarts-container', 'math-tex', 'MathJax'];
+
+        document.querySelectorAll('.message-content, .diff-card, .tool-call-card, .bs-panel').forEach(function (el) {
+            collectAndMatch(el);
+        });
+
+        function collectAndMatch(root) {
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+                acceptNode: function (node) {
+                    // 跳过空文本
+                    if (node.nodeValue.trim().length === 0) return NodeFilter.FILTER_REJECT;
+                    // 跳过 SCRIPT/STYLE
+                    let parent = node.parentNode;
+                    while (parent && parent !== root) {
+                        if (skipTags.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
+                        if (parent.classList) {
+                            for (let i = 0; i < skipClasses.length; i++) {
+                                if (parent.classList.contains(skipClasses[i])) return NodeFilter.FILTER_REJECT;
+                            }
+                        }
+                        parent = parent.parentNode;
+                    }
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            });
+
+            while (walker.nextNode()) {
+                const textNode = walker.currentNode;
+                const content = textNode.nodeValue;
+                let match;
+                regex.lastIndex = 0;
+                while ((match = regex.exec(content)) !== null) {
+                    const range = document.createRange();
+                    range.setStart(textNode, match.index);
+                    range.setEnd(textNode, match.index + match[0].length);
+                    ranges.push(range);
+                    if (match.index === regex.lastIndex) regex.lastIndex++;
+                }
+            }
+        }
+
+        if (ranges.length > 0) {
+            const highlight = new Highlight(...ranges);
+            CSS.highlights.set('text-highlight', highlight);
+        }
+    }
+
+    function clearHighlight() {
+        CSS.highlights.delete('text-highlight');
+    }
+})();

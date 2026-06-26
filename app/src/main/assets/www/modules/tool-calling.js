@@ -2414,8 +2414,8 @@ async function executeToolCall(tc) {
     // ==================== 本地命令安全白名单 ====================
     // 安全命令前缀：只读/查询类命令，直接执行无需确认
     const SAFE_COMMAND_PREFIXES = [
-        // 文件查看
-        'ls', 'cat', 'head', 'tail', 'wc', 'nl', 'tac', 'od', 'xxd', 'stat',
+        // 文件查看 / 目录切换
+        'cd', 'ls', 'cat', 'head', 'tail', 'wc', 'nl', 'tac', 'od', 'xxd', 'stat',
         'file', 'readlink', 'realpath', 'basename', 'dirname', 'pwd',
         // 文本处理（纯处理，不写文件）
         'grep', 'egrep', 'fgrep', 'sed', 'awk', 'sort', 'uniq', 'cut', 'tr',
@@ -3638,10 +3638,8 @@ async function processToolCalls(messages, aiMessageDiv) {
         followupEndpoint = getResponsesEndpoint();
         console.log('[ToolCalling] Responses API 模式, previous_response_id:', responsesPrevId, 'tool结果:', responsesToolResults.length);
     } else {
-        // Chat Completions 模式（原有逻辑）
-        followupBody = buildRequestBodyFromMessages(messages);
-        const tools = getToolDefinitions();
-        if (tools) followupBody.tools = tools;
+        // Chat Completions 模式：复用 buildRequestBody（按轮数截取，不会拆散 tool 消息对）
+        followupBody = buildRequestBody(null, null, null, null);
         followupEndpoint = getAPIEndpoint();
     }
 
@@ -3921,10 +3919,8 @@ async function processToolCalls(messages, aiMessageDiv) {
                     }
                     loopBody = buildResponsesFollowupBody(messages, result.responseId, loopToolResults);
                 } else {
-                    // Chat Completions（原有逻辑）
-                    loopBody = buildRequestBodyFromMessages(messages);
-                    const loopTools = getToolDefinitions();
-                    if (loopTools) loopBody.tools = loopTools;
+                    // Chat Completions：复用 buildRequestBody
+                    loopBody = buildRequestBody(null, null, null, null);
                 }
             } else {
                 // 纯文本回复，结束循环
@@ -4022,56 +4018,6 @@ async function handleLastRoundForceReply(headers, messages, chainLastId) {
 
 // ==================== UI 辅助 ====================
 
-/**
- * 直接用 messages 数组构建请求体，避免 buildRequestBody 的截断逻辑破坏 tool 消息完整性
- */
-function buildRequestBodyFromMessages(msgs) {
-    const agent = getCurrentAgent();
-    let systemContent = agent.systemPrompt || '';
-    if (agent.name) {
-        systemContent = systemContent
-            ? `你的智能体名称是${agent.name}。\n\n${systemContent}`
-            : `你的智能体名称是${agent.name}。`;
-    }
-    const apiMessages = [];
-    if (systemContent) {
-        apiMessages.push({ role: 'system', content: systemContent });
-    }
-    // 只取当前时间线上的可见消息（根据 prevId 链过滤）
-    const visibleMsgs = getVisibleTimelineMessages();
-    const visibleIds = new Set(visibleMsgs.map(m => m.id));
-    for (const msg of visibleMsgs) {
-        // 如果有版本，用当前版本的属性
-        const currentVer = (msg.versions && msg.versions.length > 0)
-            ? msg.versions[msg.currentVersionIndex || 0] : null;
-        const effectiveContent = currentVer ? (currentVer.content ?? null) : msg.content;
-        const apiMsg = { role: msg.role, content: effectiveContent };
-        // 如果有版本，用当前版本的 tool_calls；没有版本则用消息本身的
-        const effectiveToolCalls = (msg.versions && msg.versions.length > 0)
-            ? (currentVer?.tool_calls || null)
-            : msg.tool_calls;
-        if (effectiveToolCalls) {
-            apiMsg.tool_calls = effectiveToolCalls;
-        }
-        if (msg.tool_call_id) apiMsg.tool_call_id = msg.tool_call_id;
-        if (msg.name) apiMsg.name = msg.name;
-        // DeepSeek/Kimi 深度思考模式要求 assistant 消息带 reasoning_content
-        if (msg.role === 'assistant' && ['deepseek', 'kimi'].includes(currentAIProvider)) {
-            apiMsg.reasoning_content = msg.reasoning || '';
-        }
-        apiMessages.push(apiMsg);
-    }
-    const body = {
-        model: selectedModel,
-        messages: apiMessages,
-        stream: streamOutputEnabled
-    };
-    // GLM 流式工具调用需要 tool_stream
-    if (currentAIProvider === 'glm') {
-        body.tool_stream = true;
-    }
-    return body;
-}
 
 /**
  * 显示工具执行状态

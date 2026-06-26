@@ -134,9 +134,9 @@ body.sunset-theme {
     --text-primary: #4A3520;
     --text-secondary: #8B7355;
     --border-color: #E8D5A8;
-    --ai-msg-bg: rgba(255, 248, 225, 0.95);
-    --frosted-light: rgba(255, 248, 225, 0.8);
-    --frosted-heavy: rgba(255, 248, 225, 0.85);
+    --ai-msg-bg: rgba(255, 253, 245, 0.95);
+    --frosted-light: rgba(255, 253, 245, 0.8);
+    --frosted-heavy: rgba(255, 253, 245, 0.85);
     --shadow: 0 1px 3px rgba(180, 140, 60, 0.15);
     --shadow-lg: 0 4px 6px rgba(180, 140, 60, 0.15);
     --text-shadow-color: rgba(74, 53, 32, 0.15);
@@ -144,12 +144,12 @@ body.sunset-theme {
 
 /* 暗色主题 */
 body.dark-theme {
-    --bg-color: #000000;
+    --bg-color: #0d0d0d;
     --surface-color: #0d0d0d;
     --text-primary: #e5e5e5;
     --text-secondary: #a0a0a0;
     --border-color: #333333;
-    --ai-msg-bg: #0d0d0d;
+    --ai-msg-bg: rgba(13, 13, 13, 0.95);
     --surface-elevated: #141414;
     --frosted-light: rgba(8, 8, 8, 0.8);
     --frosted-heavy: rgba(8, 8, 8, 0.8);
@@ -160,7 +160,7 @@ body.dark-theme {
 
 /* 星海蓝主题（深色类，使用更高优先级选择器确保覆盖 dark-theme） */
 body.dark-theme.starlight-theme {
-    --bg-color: #060D1A;
+    --bg-color: #0F1B30;
     --surface-color: #0A1322;
     --surface-elevated: #0E1A2E;
     --text-primary: #D6E4F0;
@@ -427,12 +427,12 @@ body.dark-theme .input-wrapper textarea:focus {
 }
 
 body.dark-theme .message.user .message-content {
-    background-color: rgba(0, 0, 0, 0.95);
+    background-color: rgba(13, 13, 13, 0.95);
     color: var(--text-primary);
 }
 
 body.sunset-theme .message.user .message-content {
-    background-color: rgba(255, 252, 240, 0.95);
+    background-color: rgba(255, 253, 245, 0.95);
     color: var(--text-primary);
 }
 
@@ -442,7 +442,7 @@ body.sunset-theme .message.ai .message-content {
 }
 
 body.starlight-theme .message.user .message-content {
-    background-color: rgba(8, 16, 30, 0.95);
+    background-color: rgba(15, 27, 48, 0.95);
     color: var(--text-primary);
 }
 
@@ -646,6 +646,7 @@ body.landscape-mode .bottom-info-bar {
     align-items: center;
     width: 100%;
     padding-top: 2px;
+    margin-bottom: 0;
     gap: 8px;
 }
 
@@ -1158,7 +1159,7 @@ body.landscape-mode .frequent-model-item {
 .message.user .message-content {
     background-color: var(--ai-msg-bg);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: 12px;
 }
 
@@ -1178,7 +1179,7 @@ body.landscape-mode .frequent-model-item {
 }
 .message.system .message-content {
     background-color: rgba(33, 150, 243, 0.12);
-    border: 1px solid rgba(33, 150, 243, 0.25);
+    border: none;
     color: rgba(255, 255, 255, 0.85);
 }
 .message.system .message-file-item {
@@ -1227,8 +1228,8 @@ body.landscape-mode .frequent-model-item {
 }
 
 .message-content {
-    padding: 10px 14px;
-    border-radius: 16px;
+    padding: 0;
+    border-radius: 0;
     line-height: 1.5;
     word-wrap: break-word;
     user-select: text;
@@ -1293,8 +1294,8 @@ body.landscape-mode .frequent-model-item {
 .message.ai .message-content {
     background-color: var(--ai-msg-bg);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
+    border: none;
+    border-radius: 0;
 }
 
 /* AI 消息时间戳和模型名样式 - 放在气泡外左上角 */
@@ -1414,6 +1415,7 @@ body.landscape-mode .frequent-model-item {
     color: var(--deep-thinking-on);
     padding: 5px 28px 5px 8px;
     background-color: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
     border-radius: 8px;
     margin-bottom: 6px;
     white-space: pre-wrap;
@@ -4846,7 +4848,7 @@ body.dark-theme .message-content .echarts-container {
     padding: 12px 24px;
     border-radius: 8px;
     font-size: 14px;
-    z-index: 10002;
+    z-index: 10010;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;
