@@ -934,8 +934,16 @@ function getMessagesFromDB(key) {
 // 写入消息到 IndexedDB
 function saveMessagesToDB(key, messages) {
     return new Promise((resolve, reject) => {
+        if (!key) {
+            reject(new Error('saveMessagesToDB: 缺少 key 参数'));
+            return;
+        }
+        if (!messages || !Array.isArray(messages)) {
+            reject(new Error('saveMessagesToDB: messages 参数无效'));
+            return;
+        }
         if (!messageDB) {
-            resolve();
+            reject(new Error('saveMessagesToDB: 数据库未初始化'));
             return;
         }
         const transaction = messageDB.transaction([MESSAGE_STORE_NAME], 'readwrite');
@@ -958,7 +966,7 @@ function saveMessagesToDB(key, messages) {
         };
         request.onerror = () => {
             console.error('IndexedDB 保存消息失败:', request.error);
-            resolve();
+            reject(request.error || new Error('IndexedDB 写入失败'));
         };
     });
 }
@@ -1882,8 +1890,14 @@ async function getMessages() {
 
 // 保存当前智能体的消息
 function saveMessages(msgs) {
+    if (!msgs || !Array.isArray(msgs)) {
+        return Promise.reject(new Error('saveMessages: msgs 参数无效'));
+    }
     // 处理多模态消息：过滤掉图片 base64 数据，避免超出 localStorage 限制
     const processedMsgs = msgs.map(msg => {
+        if (!msg || !msg.role || msg.content === undefined) {
+            throw new Error('saveMessages: 消息对象缺少必填字段 (role 或 content)');
+        }
         // 如果 content 是数组（多模态格式），过滤图片数据
         if (Array.isArray(msg.content)) {
             const processedContent = msg.content.filter(item => item.type !== 'image_url');
@@ -11359,61 +11373,36 @@ function buildRequestBody(systemPrompt = null, targetMessage = null, knowledgeCo
     }
 }
 
-// 更新缓存命中优化计数（根据AI消息编号变化）
-// 注：增加逻辑已移到消息气泡创建时，这里只处理减少和重置
+// 更新缓存命中优化计数（每次正常发送 +1，重发/刷新跳过）
 function updateCacheOptimizeCount() {
     if (!cacheOptimizeEnabled) return;
 
-    // 获取当前话题的存储key
     const topicKey = getTopicMessagesKey();
+    const userMsgCount = messages.filter(msg => msg.role === 'user').length;
 
-    // 计算当前用户消息数量（一轮只有一个user消息，不受tool消息影响）
-    const currentAiNumber = messages.filter(msg => msg.role === 'user').length;
-
-    // 获取上次记录的编号（更新前）
-    const lastAiNumber = lastAiNumberByTopic[topicKey] || 0;
-
-    // 如果是刷新回答或重新发送，只更新编号记录，不改变计数
+    // 重发/刷新：不改变计数，只更新记录
     if (skipNextCountUpdate) {
-        skipNextCountUpdate = false;  // 重置标志
-        lastAiNumberByTopic[topicKey] = currentAiNumber;
-        localStorage.setItem('cnai_last_ai_number_by_topic', JSON.stringify(lastAiNumberByTopic));
-        console.log('缓存命中优化(跳过计数变化) - 话题:', topicKey, '| AI编号:', currentAiNumber, '| 计数保持:', cacheOptimizeCount);
+        skipNextCountUpdate = false;
+        console.log('[缓存优化] 跳过计数（重发/刷新）| 计数保持:', cacheOptimizeCount);
         return;
     }
 
-    // 根据编号变化调整计数
-    const numberDiff = currentAiNumber - lastAiNumber;
-    if (numberDiff > 0) {
-        // 编号增加，计数+1
-        cacheOptimizeCount++;
-        // 缓存命中优化次数：总轮数超过上下文限制的一半，且本次编号比上次大1时+1
-        if (currentAiNumber > Math.floor(contextLimit / 2) && numberDiff === 1) {
-            cacheOptimizeHitCountByTopic[topicKey] = (cacheOptimizeHitCountByTopic[topicKey] || 0) + 1;
-            localStorage.setItem('cnai_cache_optimize_hit_count_by_topic', JSON.stringify(cacheOptimizeHitCountByTopic));
-        }
-    } else if (numberDiff < 0) {
-        // 编号减少，计数-1
-        cacheOptimizeCount--;
-        const _cl = contextLimit;
-        const minCount = _cl >= 100 ? _cl - 50 : Math.floor(_cl / 2);
-        if (cacheOptimizeCount < minCount) cacheOptimizeCount = minCount;
+    // 正常发送：直接 +1
+    cacheOptimizeCount++;
+
+    // 对话轮数超过上下文限制的一半时，缓存命中次数 +1
+    if (userMsgCount > Math.floor(contextLimit / 2)) {
+        cacheOptimizeHitCountByTopic[topicKey] = (cacheOptimizeHitCountByTopic[topicKey] || 0) + 1;
+        localStorage.setItem('cnai_cache_optimize_hit_count_by_topic', JSON.stringify(cacheOptimizeHitCountByTopic));
     }
 
-    // 当计数达到上下文限制时，根据上下文限制大小重置
+    // 达到上下文上限时重置
     if (cacheOptimizeCount >= contextLimit) {
         _recalcCacheOptimizeCount(contextLimit);
     }
 
-    // 更新编号记录
-    lastAiNumberByTopic[topicKey] = currentAiNumber;
-
-    // 保存到 localStorage
     localStorage.setItem('cnai_cache_optimize_count', cacheOptimizeCount);
-    localStorage.setItem('cnai_last_ai_number_by_topic', JSON.stringify(lastAiNumberByTopic));
-
-    // 输出计数变量到控制台
-    console.log('缓存命中优化 - 话题:', topicKey, '| AI编号:', currentAiNumber, '| 编号变化:', numberDiff, '| 计数:', cacheOptimizeCount);
+    console.log('[缓存优化] 计数+1:', cacheOptimizeCount);
 }
 
 // 获取 API 端点
