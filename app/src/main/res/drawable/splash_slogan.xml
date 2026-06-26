@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="30dp"
+    android:viewportWidth="200"
+    android:viewportHeight="30">
+
+    <!-- 广告词背景（可选） -->
+    <!-- <path
+        android:fillColor="#1a1a1a"
+        android:pathData="M10,0 L190,0 A10,10 0 0,1 190,30 L10,30 A10,10 0 0,1 10,0 Z" /> -->
+
+</vector>

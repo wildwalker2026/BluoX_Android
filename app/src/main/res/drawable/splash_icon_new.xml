@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <!-- 白色背景 512x512 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M0,0 H512 V512 H0 Z" />
+
+    <!-- 半透明阴影矩形：x=95, y=138, w=332, h=200, rx=30 -->
+    <path
+        android:fillColor="#000000"
+        android:fillAlpha="0.2"
+        android:pathData="M125,138 h272 a30,30 0 0,1 30,30 v140 a30,30 0 0,1 -30,30 h-272 a30,30 0 0,1 -30,-30 v-140 a30,30 0 0,1 30,-30 Z" />
+
+    <!-- 阴影三角形：155,338 205,338 135,408 -->
+    <path
+        android:fillColor="#000000"
+        android:fillAlpha="0.2"
+        android:pathData="M155,338 L205,338 L135,408 Z" />
+
+    <!-- 黑色主体矩形：x=90, y=130, w=332, h=200, rx=30 -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M120,130 h272 a30,30 0 0,1 30,30 v140 a30,30 0 0,1 -30,30 h-272 a30,30 0 0,1 -30,-30 v-140 a30,30 0 0,1 30,-30 Z" />
+
+    <!-- 黑色三角形：150,330 200,330 130,400 -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M150,330 L200,330 L130,400 Z" />
+
+    <!-- 左边圆点：cx=200, cy=230, r=22 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M200,230 m-22,0 a22,22 0 1,0 44,0 a22,22 0 1,0 -44,0" />
+
+    <!-- 右边圆点：cx=312, cy=230, r=22 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M312,230 m-22,0 a22,22 0 1,0 44,0 a22,22 0 1,0 -44,0" />
+
+</vector>
