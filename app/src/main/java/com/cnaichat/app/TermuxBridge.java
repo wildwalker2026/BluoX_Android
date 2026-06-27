@@ -18,6 +18,10 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -57,6 +61,13 @@ public class TermuxBridge {
     // Termux 路径常量
     private static final String TERMUX_PREFIX = "/data/data/com.termux/files/usr";
     private static final String TERMUX_HOME = "/data/data/com.termux/files/home";
+
+    // HTTP 命令服务器
+    private static final String SERVER_URL = "http://127.0.0.1:8765";
+    private static final String SERVER_SCRIPT = "/sdcard/Download/Bluox/termux_server.py";
+    private static volatile Boolean serverAvailable = null;
+    private static volatile long lastPingTime = 0;
+    private static final long PING_CACHE_MS = 5000; // 5 秒内不重复 ping
 
     // 已取消的异步命令 callbackId 集合
     private static final ConcurrentHashMap<String, Boolean> cancelledCallbacks = new ConcurrentHashMap<>();
@@ -217,26 +228,44 @@ public class TermuxBridge {
     private void executeAsyncInternal(String command, String workDir, String callbackId,
                                       WebView webView, Activity activity, int timeoutSecs) {
         final boolean[] callbackCalled = {false};
-        // callbackCalled 在主线程（超时）和工作线程（执行完成）之间共享
-        // 使用 synchronized 块保证线程安全，避免竞态导致双重回调
         final Object callbackLock = new Object();
         cancelledCallbacks.remove(callbackId);
         activeCallbacks.put(callbackId, true);
 
-        // 超时保护
+        // 超时保护：额外预留 15 秒给服务器启动 + ping 开销
+        final int effectiveTimeout = timeoutSecs + 15;
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             synchronized (callbackLock) {
                 if (callbackCalled[0]) return;
                 callbackCalled[0] = true;
             }
             activeCallbacks.remove(callbackId);
-            Log.w(TAG, "异步命令超时: " + callbackId + " (" + timeoutSecs + "s)");
+            Log.w(TAG, "异步命令超时: " + callbackId + " (" + effectiveTimeout + "s)");
             callbackJs(webView, activity, callbackId,
                     "{\"error\":\"命令执行超时（" + timeoutSecs + "秒）\"}");
-        }, timeoutSecs * 1000L);
+        }, effectiveTimeout * 1000L);
 
         new Thread(() -> {
-            String result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
+            String result;
+            // 优先走 HTTP 通道（不受后台冻结影响）
+            if (isServerAvailable()) {
+                result = executeViaHttp(command, workDir, timeoutSecs);
+                if (result == null) {
+                    // HTTP 失败，回退文件轮询
+                    result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
+                }
+            } else {
+                // 服务器不可用，尝试启动
+                tryStartServer();
+                if (isServerAvailable()) {
+                    result = executeViaHttp(command, workDir, timeoutSecs);
+                    if (result == null) {
+                        result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
+                    }
+                } else {
+                    result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
+                }
+            }
             activeCallbacks.remove(callbackId);
             synchronized (callbackLock) {
                 if (callbackCalled[0]) return;
@@ -260,7 +289,155 @@ public class TermuxBridge {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  核心执行：am startservice + 文件轮询
+    //  HTTP 通道：通过常驻 Python 服务器执行命令（不受后台冻结影响）
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * 检查 HTTP 服务器是否可用（5 秒缓存）
+     */
+    private boolean isServerAvailable() {
+        // 5 秒内的检测结果直接复用
+        if (serverAvailable != null && serverAvailable
+                && System.currentTimeMillis() - lastPingTime < PING_CACHE_MS) {
+            return true;
+        }
+        serverAvailable = pingServer();
+        lastPingTime = System.currentTimeMillis();
+        return serverAvailable;
+    }
+
+    /**
+     * Ping 服务器
+     */
+    private boolean pingServer() {
+        try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(SERVER_URL + "/ping").openConnection();
+            conn.setConnectTimeout(2000);
+            conn.setReadTimeout(2000);
+            conn.setRequestMethod("GET");
+            int code = conn.getResponseCode();
+            conn.disconnect();
+            return code == 200;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 尝试启动 HTTP 服务器
+     */
+    private void tryStartServer() {
+        File script = new File(SERVER_SCRIPT);
+        if (!script.exists()) {
+            Log.w(TAG, "服务器脚本不存在: " + SERVER_SCRIPT);
+            return;
+        }
+        Log.i(TAG, "尝试启动 HTTP 命令服务器...");
+
+        // 写启动脚本文件（避免 --esa 空格截断）
+        String launcherFile = "/sdcard/.termux_start_server.sh";
+        try {
+            FileWriter fw = new FileWriter(launcherFile);
+            fw.write("nohup " + TERMUX_PREFIX + "/bin/python3 \"" + SERVER_SCRIPT + "\" > /dev/null 2>&1 &\n");
+            fw.close();
+        } catch (Exception e) {
+            Log.e(TAG, "写入启动脚本失败: " + e.getMessage());
+            return;
+        }
+
+        String amCmd = "am startservice --user 0" +
+                " -n " + TERMUX_PACKAGE + "/" + TERMUX_RUN_COMMAND_SERVICE +
+                " -a " + ACTION_RUN_COMMAND +
+                " --es " + EXTRA_COMMAND_PATH + " " + TERMUX_PREFIX + "/bin/bash" +
+                " --esa " + EXTRA_ARGUMENTS + " " + launcherFile +
+                " --es " + EXTRA_WORKDIR + " " + TERMUX_HOME +
+                " --ez " + EXTRA_BACKGROUND + " true";
+        try {
+            ProcessBuilder pb = new ProcessBuilder("/system/bin/sh", "-c",
+                    amCmd + " > /dev/null 2>&1 &");
+            pb.start();
+        } catch (Exception e) {
+            Log.e(TAG, "启动服务器失败: " + e.getMessage());
+            return;
+        }
+        // 等待启动（最多 8 秒）
+        for (int i = 0; i < 16; i++) {
+            try { Thread.sleep(500); } catch (InterruptedException e) { break; }
+            if (pingServer()) {
+                serverAvailable = true;
+                Log.i(TAG, "HTTP 命令服务器已启动");
+                return;
+            }
+        }
+        Log.w(TAG, "HTTP 命令服务器启动超时");
+        serverAvailable = false;
+    }
+
+    /**
+     * 通过 HTTP 通道执行命令
+     * @return JSON 结果字符串，null 表示失败（应回退到文件轮询）
+     */
+    private String executeViaHttp(String command, String workDir, int timeoutSec) {
+        HttpURLConnection conn = null;
+        try {
+            JSONObject req = new JSONObject();
+            req.put("command", command);
+            req.put("timeout", timeoutSec);
+            if (workDir != null) req.put("workdir", workDir);
+            byte[] body = req.toString().getBytes("UTF-8");
+
+            conn = (HttpURLConnection) new URL(SERVER_URL + "/exec").openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(timeoutSec * 1000 + 5000);
+            conn.setDoOutput(true);
+
+            OutputStream os = conn.getOutputStream();
+            os.write(body);
+            os.flush();
+            os.close();
+
+            int code = conn.getResponseCode();
+            if (code != 200) {
+                Log.e(TAG, "HTTP 执行失败: " + code);
+                serverAvailable = false;
+                return null;
+            }
+
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(conn.getInputStream(), "UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (sb.length() > 0) sb.append("\n");
+                sb.append(line);
+            }
+            reader.close();
+
+            JSONObject resp = new JSONObject(sb.toString());
+            int exitCode = resp.optInt("exitCode", -1);
+            String output = resp.optString("output", "");
+            String error = resp.optString("error", "");
+
+            if (!error.isEmpty()) {
+                return "{\"error\":\"" + escapeJson(error) + "\"}";
+            }
+
+            Log.d(TAG, "HTTP 通道执行完成: exitCode=" + exitCode);
+            return buildResultJson(exitCode, output, "");
+
+        } catch (Exception e) {
+            Log.e(TAG, "HTTP 通道异常: " + e.getMessage());
+            serverAvailable = false;
+            return null;
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  核心执行：am startservice + 文件轮询（fallback）
     // ═══════════════════════════════════════════════════════════
 
     /**
