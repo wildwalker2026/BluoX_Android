@@ -399,8 +399,8 @@ public class MainActivity extends Activity {
                 }
                 Log.d("AdSdk", "onPageFinished");
 
-                // 页面重新加载时杀掉旧服务器进程，并设置 5 秒冷却期
-                TermuxBridge.killServerOnPageReload();
+                // 页面重新加载时杀掉旧服务器进程，等5秒后自动重启
+                if (termuxBridge != null) termuxBridge.killServerOnPageReload();
             }
 
             @Override

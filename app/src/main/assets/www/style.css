@@ -674,6 +674,17 @@ body.landscape-mode .frequent-model-item {
     white-space: nowrap;
 }
 
+/* 横屏时发送按钮放在菜单右边，宽度为菜单按钮的1.5倍 */
+body.landscape-mode .send-btn {
+    width: 52.5px;  /* 35px * 1.5 */
+    padding: 0;
+    margin: 0;
+    height: 35px;
+    line-height: 35px;
+    text-align: center;
+    font-size: 13px;
+}
+
 /* 头部左侧 */
 .header-left {
     display: flex;

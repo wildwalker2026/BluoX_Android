@@ -9423,6 +9423,9 @@ window.onOrientationChange = function (isLandscape) {
         headerVisibleInLandscape = false;
         // 横屏时 container 覆盖整个屏幕
         updateContainerMarginTop();
+        // 横屏时把发送按钮移到菜单旁边
+        var actionsRight = document.querySelector('.actions-right');
+        if (actionsRight && sendBtn) actionsRight.appendChild(sendBtn);
     } else {
         document.body.classList.remove('landscape-mode');
         // 退出横屏模式时，恢复标题栏显示
@@ -9434,6 +9437,9 @@ window.onOrientationChange = function (isLandscape) {
         }
         // 竖屏时恢复 container 在 header 下方
         updateContainerMarginTop();
+        // 竖屏时把发送按钮移回 bottom-info-bar
+        var bottomInfoBar = document.getElementById('bottomInfoBar');
+        if (bottomInfoBar && sendBtn) bottomInfoBar.insertBefore(sendBtn, bottomInfoBar.firstChild);
     }
 };
 

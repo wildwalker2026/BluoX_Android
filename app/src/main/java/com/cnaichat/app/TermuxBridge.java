@@ -68,8 +68,7 @@ public class TermuxBridge {
     private static volatile Boolean serverAvailable = null;
     private static volatile long lastPingTime = 0;
     private static final long PING_CACHE_MS = 5000; // 5 秒内不重复 ping
-    private static volatile long serverKillTime = 0; // onPageFinished 杀进程的时间戳
-    private static final long SERVER_COOLDOWN_MS = 5000; // 杀进程后 5 秒冷却期
+    private volatile boolean initializing = false; // 服务器初始化中
 
     // 已取消的异步命令 callbackId 集合
     private static final ConcurrentHashMap<String, Boolean> cancelledCallbacks = new ConcurrentHashMap<>();
@@ -248,14 +247,16 @@ public class TermuxBridge {
         }, effectiveTimeout * 1000L);
 
         new Thread(() -> {
-            // 如果 onPageFinished 刚杀了进程，等待冷却期结束
-            if (serverKillTime > 0) {
-                long waitMs = SERVER_COOLDOWN_MS - (System.currentTimeMillis() - serverKillTime);
-                if (waitMs > 0) {
-                    Log.d(TAG, "服务器冷却期，等待 " + waitMs + "ms");
-                    try { Thread.sleep(waitMs); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            // 如果服务器正在初始化，直接返回提示
+            if (initializing) {
+                activeCallbacks.remove(callbackId);
+                synchronized (callbackLock) {
+                    if (callbackCalled[0]) return;
+                    callbackCalled[0] = true;
                 }
-                serverKillTime = 0;
+                callbackJs(webView, activity, callbackId,
+                        "{\"error\":\"⏳ 服务器初始化中，请稍后重试\"}");
+                return;
             }
             // 生成唯一的进度文件名，传给 Python 和轮询器
             String progressFile = PROGRESS_DIR + "/" + PROGRESS_PREFIX + callbackId + ".txt";
@@ -421,13 +422,14 @@ public class TermuxBridge {
     }
 
     /**
-     * 页面重新加载时杀掉服务器进程并设置冷却期
+     * 页面重新加载时杀掉服务器进程，等5秒后自动重启
      */
-    public static void killServerOnPageReload() {
-        serverKillTime = System.currentTimeMillis();
+    public void killServerOnPageReload() {
+        initializing = true;
         serverAvailable = null;
         new Thread(() -> {
             try {
+                // 1. 同步执行 kill
                 String killScript = "/sdcard/.termux_kill_server.sh";
                 java.io.FileWriter fw = new java.io.FileWriter(killScript);
                 fw.write("pkill -f termux_server.py 2>/dev/null\n");
@@ -440,11 +442,18 @@ public class TermuxBridge {
                         " --es com.termux.RUN_COMMAND_WORKDIR /data/data/com.termux/files/home" +
                         " --ez com.termux.RUN_COMMAND_BACKGROUND true";
                 ProcessBuilder pb = new ProcessBuilder("/system/bin/sh", "-c",
-                        amCmd + " > /dev/null 2>&1 &");
-                pb.start();
-                Log.d(TAG, "onPageFinished 已发送 kill 命令");
+                        amCmd + " > /dev/null 2>&1");
+                pb.start().waitFor();
+                Log.d(TAG, "onPageFinished kill 已执行");
+                // 2. 等5秒让端口释放
+                Thread.sleep(5000);
+                // 3. 自动启动新服务器
+                tryStartServer();
+                initializing = false;
+                Log.d(TAG, "onPageFinished 服务器已自动重启");
             } catch (Exception e) {
-                Log.w(TAG, "onPageFinished kill 失败: " + e.getMessage());
+                initializing = false;
+                Log.w(TAG, "onPageFinished 重启失败: " + e.getMessage());
             }
         }).start();
     }
