@@ -422,14 +422,30 @@ public class TermuxBridge {
     }
 
     /**
-     * 页面重新加载时杀掉服务器进程，等5秒后自动重启
+     * 页面重新加载时检查服务器状态：
+     * - ping 通 → 服务器活着，不杀，直接复用
+     * - ping 不通 → 杀旧进程，等端口释放后重启
      */
     public void killServerOnPageReload() {
-        initializing = true;
-        serverAvailable = null;
         new Thread(() -> {
             try {
-                // 1. 同步执行 kill
+                // 1. 先 ping 检查服务器是否存活
+                boolean alive = pingServer();
+                if (alive) {
+                    // 服务器活着，直接复用
+                    serverAvailable = true;
+                    lastPingTime = System.currentTimeMillis();
+                    Log.d(TAG, "onPageFinished: 服务器存活，跳过重启");
+                    android.widget.Toast.makeText(context, "termux就绪", android.widget.Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                // 2. ping 不通，需要重启
+                initializing = true;
+                serverAvailable = null;
+                android.widget.Toast.makeText(context, "termux初始化中", android.widget.Toast.LENGTH_SHORT).show();
+
+                // 杀旧进程
                 String killScript = "/sdcard/.termux_kill_server.sh";
                 java.io.FileWriter fw = new java.io.FileWriter(killScript);
                 fw.write("pkill -f termux_server.py 2>/dev/null\n");
@@ -445,9 +461,9 @@ public class TermuxBridge {
                         amCmd + " > /dev/null 2>&1");
                 pb.start().waitFor();
                 Log.d(TAG, "onPageFinished kill 已执行");
-                // 2. 等5秒让端口释放
+                // 等5秒让端口释放
                 Thread.sleep(5000);
-                // 3. 自动启动新服务器
+                // 启动新服务器
                 tryStartServer();
                 initializing = false;
                 Log.d(TAG, "onPageFinished 服务器已自动重启");
