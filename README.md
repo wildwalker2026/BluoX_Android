@@ -11,7 +11,7 @@
 |------|------|
 | 🤖 **多 AI 平台聚合** | 支持通义千问、DeepSeek、豆包、智谱清言、MiniMax、Kimi 等主流大模型 |
 | 🛠️ **AI 工具调用** | 文件读写、代码编辑、网页搜索，AI 自主完成复杂任务，敏感操作弹卡片确认 |
-| 💻 **终端集成** | 搭配 Termux，AI 可在手机上执行命令、编译项目、安装 APK |
+| 💻 **终端集成** | 搭配 Termux，AI 可在手机上执行命令、运行脚本 |
 | 🔒 **隐私安全** | 所有数据 100% 本地存储，零上传，对话只属于你自己 |
 | 📚 **本地知识库** | 上传文档构建专属知识库，离线检索，真正为用户所有 |
 | 📱 **跨设备协同** | 手机连接电脑，AI 直接帮你编辑文件、执行命令、传输文件 |
@@ -101,7 +101,7 @@ Copyright © 2026 新蓝域（广州）科技有限责任公司. All rights rese
 |---------|-------------|
 | 🤖 **Multi-Model Support** | Qwen, DeepSeek, Doubao, Zhipu, MiniMax, Kimi and more |
 | 🛠️ **AI Tool Calling** | File read/write, code editing, web search — AI handles complex tasks autonomously, with confirmation cards for sensitive operations |
-| 💻 **Terminal Integration** | Works with Termux — AI can execute commands, compile projects, and install APKs on your phone |
+| 💻 **Terminal Integration** | Works with Termux — AI can execute commands and run scripts on your phone |
 | 🔒 **Privacy First** | 100% local storage, zero upload — your conversations belong only to you |
 | 📚 **Local Knowledge Base** | Upload documents to build a private knowledge base with offline retrieval |
 | 📱 **Cross-Device** | Connect phone to PC — AI directly edits files, runs commands, and transfers files |
