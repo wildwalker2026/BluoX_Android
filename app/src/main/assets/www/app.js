@@ -9423,9 +9423,9 @@ window.onOrientationChange = function (isLandscape) {
         headerVisibleInLandscape = false;
         // 横屏时 container 覆盖整个屏幕
         updateContainerMarginTop();
-        // 横屏时把发送按钮移到菜单旁边
-        var actionsRight = document.querySelector('.actions-right');
-        if (actionsRight && sendBtn) actionsRight.appendChild(sendBtn);
+        // 横屏时把发送按钮移到菜单旁边（菜单在 input-textarea-row 里）
+        var textareaRow = document.querySelector('.input-textarea-row');
+        if (textareaRow && sendBtn) textareaRow.appendChild(sendBtn);
     } else {
         document.body.classList.remove('landscape-mode');
         // 退出横屏模式时，恢复标题栏显示
@@ -12985,6 +12985,7 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
         }
     }
 
+    try {
     const error = lastError;
     if (error) {
         console.error('发送消息失败:', error);
@@ -13046,9 +13047,10 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
             await saveMessages(messages);
         }
     } // end if (error)
-
+    } catch (err) {
+        console.error('消息保存/错误处理异常:', err);
+    } finally {
     // finally 逻辑
-    {
         // 生成结束时播放提示音（复用确认操作提示音开关和音量）
         if (confirmSoundSwitch && confirmSoundSwitch.checked) {
             try {
@@ -13067,6 +13069,7 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
         sendBtn.disabled = false;
         stopBtn.style.display = 'none';  // 隐藏停止按钮
         messageInput.placeholder = '输入消息...';
+        const _wasAborted = abortController && abortController.signal.aborted;
         abortController = null;
         // 重置重发状态
         resendUserId = null;
@@ -13100,6 +13103,15 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
             currentTopic.lastActiveTime = Date.now();
             changed = true;
             if (changed) saveAgentTopics();
+        }
+
+        // 用户主动停止时刷新当前话题
+        if (_wasAborted) {
+            try {
+                await switchAgentAndTopic(currentAgentId, currentTopicId);
+            } catch (e2) {
+                console.error('刷新话题失败:', e2);
+            }
         }
     }
 }
@@ -13891,10 +13903,8 @@ document.addEventListener('blur', function (e) {
     }
 }, true);
 
-// 更新发送按钮状态：有内容显示发送图标，无内容显示添加话题图标
+// 更新发送按钮状态（发送按钮已改为长显，此函数保留为空避免大量调用点报错）
 function updateSendBtnState() {
-    const hasContent = messageInput.value.trim().length > 0 || pendingImages.length > 0 || pendingFiles.length > 0;
-    sendBtn.classList.toggle('visible', hasContent);
 }
 
 // 弹窗内输入框聚焦时滚动到可视区域

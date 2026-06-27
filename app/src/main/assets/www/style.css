@@ -186,13 +186,7 @@ body.dark-theme.starlight-theme {
     --highlight-icon-filter: brightness(0) invert(1);
 }
 
-/* 极简浅色模式：发送按钮透明背景+边框 */
-body.minimal-theme:not(.dark-theme) .send-btn {
-    background-color: transparent;
-    border: 1px solid #000000;
-}
-
-/* 极简浅色模式：发送按钮SVG改为黑色 */
+/* 极简浅色模式：发送按钮SVG改为黑色（已废弃，保留兼容） */
 body.minimal-theme:not(.dark-theme) .send-btn svg {
     stroke: #000000;
 }
@@ -236,12 +230,7 @@ body.dark-theme.minimal-theme {
     --primary-border: #ffffff;
 }
 
-/* 极简深色：发送按钮透明背景+白边框+白图标 */
-body.dark-theme.minimal-theme .send-btn {
-    background-color: transparent;
-    border: 1px solid #ffffff;
-}
-
+/* 极简深色：发送按钮SVG（已废弃，保留兼容） */
 body.dark-theme.minimal-theme .send-btn svg {
     stroke: #ffffff;
 }
@@ -678,7 +667,7 @@ body.landscape-mode .frequent-model-item {
 body.landscape-mode .send-btn {
     width: 52.5px;  /* 35px * 1.5 */
     padding: 0;
-    margin: 0;
+    margin: 0 0 0 4px;
     height: 35px;
     line-height: 35px;
     text-align: center;
@@ -2474,48 +2463,6 @@ body.dark-theme.minimal-theme .send-btn {
 .send-btn:disabled {
     background-color: var(--border-color);
     cursor: not-allowed;
-}
-
-.send-btn svg {
-    stroke: white;
-}
-
-/* 发送按钮内的图标显示控制 */
-.send-btn .send-icon {
-    display: block;
-}
-
-.send-btn .add-topic-icon {
-    display: none;
-}
-
-/* 添加话题按钮状态 - 反色样式 */
-.send-btn.add-topic-mode {
-    background-color: var(--surface-color);
-    border: 2px solid var(--primary-color);
-}
-
-.send-btn.add-topic-mode :hover[a-non-existent-attr] {
-    background-color: var(--bg-color);
-}
-
-.send-btn.add-topic-mode .send-icon {
-    display: none;
-}
-
-.send-btn.add-topic-mode .add-topic-icon {
-    display: block;
-    stroke: var(--primary-color);
-}
-
-/* 暗色主题下添加话题按钮样式 */
-body.dark-theme .send-btn.add-topic-mode {
-    background-color: var(--surface-color);
-    border-color: var(--primary-color);
-}
-
-body.dark-theme .send-btn.add-topic-mode .add-topic-icon {
-    stroke: var(--primary-color);
 }
 
 /* 停止生成按钮 */
@@ -7598,15 +7545,11 @@ body.dark-theme .form-group select:focus {
 }
 
 /* Material Design 发送按钮增强 */
-.send-btn {
-    transition: background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
-}
-
 .send-btn :hover[a-non-existent-attr] {
 }
 
 .send-btn:active {
-    transform: scale(0.92);
+    transform: scale(0.98);
 }
 
 /* Material Design 停止按钮增强 */
