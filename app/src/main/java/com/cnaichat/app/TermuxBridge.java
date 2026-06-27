@@ -458,11 +458,13 @@ public class TermuxBridge {
         String scriptFile = "/sdcard/.termux_cmd_" + ts + ".sh";
         String actualWorkDir = workDir != null ? workDir : TERMUX_HOME;
 
-        // 包装命令：输出重定向到文件 + 追加退出码 + 复制日志到笔记目录
+        // 包装命令：输出重定向到文件 + 追加退出码 + 追加日志到笔记目录（按日）
         String logDir = "/sdcard/Download/Bluox/Notes";
-        String logFile = logDir + "/termux_log_" + ts + ".txt";
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyyMMdd");
+        String dateStr = sdf.format(new java.util.Date(ts));
+        String logFile = logDir + "/termux_log_" + dateStr + ".txt";
         String wrappedCommand = "{ " + command + " ; } > " + outputFile + " 2>&1 ; echo EXITCODE:$? >> " + outputFile
-                + " ; mkdir -p " + logDir + " ; cp " + outputFile + " " + logFile;
+                + " ; mkdir -p " + logDir + " ; cat " + outputFile + " >> " + logFile;
 
         Log.d(TAG, "executeViaFile: " + command.substring(0, Math.min(command.length(), 60))
                 + " -> " + outputFile);
