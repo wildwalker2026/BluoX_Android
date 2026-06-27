@@ -319,6 +319,7 @@ public class TermuxBridge {
             conn.disconnect();
             return code == 200;
         } catch (Exception e) {
+            Log.e(TAG, "pingServer 失败: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             return false;
         }
     }
@@ -327,9 +328,23 @@ public class TermuxBridge {
      * 尝试启动 HTTP 服务器
      */
     public void tryStartServer() {
-        File script = new File(SERVER_SCRIPT);
-        if (!script.exists()) {
-            Log.w(TAG, "服务器脚本不存在: " + SERVER_SCRIPT);
+        // 先杀掉旧的服务器进程（通过 pid 文件）
+        killOldServer();
+
+        // 从 assets 释放服务器脚本（每次都覆盖，确保最新版本）
+        File scriptFile = new File(SERVER_SCRIPT);
+        scriptFile.getParentFile().mkdirs();
+        try {
+            java.io.InputStream is = context.getAssets().open("termux_server.py");
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(scriptFile);
+            byte[] buf = new byte[4096];
+            int len;
+            while ((len = is.read(buf)) > 0) fos.write(buf, 0, len);
+            fos.close();
+            is.close();
+            Log.i(TAG, "服务器脚本已从 assets 释放到: " + SERVER_SCRIPT);
+        } catch (Exception e) {
+            Log.e(TAG, "释放服务器脚本失败: " + e.getMessage());
             return;
         }
         Log.i(TAG, "尝试启动 HTTP 命令服务器...");
@@ -366,11 +381,49 @@ public class TermuxBridge {
             if (pingServer()) {
                 serverAvailable = true;
                 Log.i(TAG, "HTTP 命令服务器已启动");
+                // 在主线程显示 Toast
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    android.widget.Toast.makeText(context, "Termux 命令服务器已启动", android.widget.Toast.LENGTH_SHORT).show();
+                });
                 return;
             }
         }
         Log.w(TAG, "HTTP 命令服务器启动超时");
         serverAvailable = false;
+    }
+
+    /**
+     * 杀掉旧的服务器进程（通过 Termux 执行 pkill）
+     */
+    private void killOldServer() {
+        // 写 kill 脚本
+        String killScript = "/sdcard/.termux_kill_server.sh";
+        try {
+            FileWriter fw = new FileWriter(killScript);
+            fw.write("pkill -f termux_server.py 2>/dev/null\n");
+            fw.close();
+        } catch (Exception e) {
+            Log.w(TAG, "写入 kill 脚本失败: " + e.getMessage());
+        }
+
+        // 通过 am startservice 在 Termux 中执行 kill
+        String amCmd = "am startservice --user 0" +
+                " -n " + TERMUX_PACKAGE + "/" + TERMUX_RUN_COMMAND_SERVICE +
+                " -a " + ACTION_RUN_COMMAND +
+                " --es " + EXTRA_COMMAND_PATH + " " + TERMUX_PREFIX + "/bin/bash" +
+                " --esa " + EXTRA_ARGUMENTS + " " + killScript +
+                " --es " + EXTRA_WORKDIR + " " + TERMUX_HOME +
+                " --ez " + EXTRA_BACKGROUND + " true";
+        try {
+            ProcessBuilder pb = new ProcessBuilder("/system/bin/sh", "-c",
+                    amCmd + " > /dev/null 2>&1 &");
+            pb.start();
+        } catch (Exception e) {
+            Log.w(TAG, "发送 kill 命令失败: " + e.getMessage());
+        }
+        // 等待 kill 执行
+        try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        serverAvailable = null;
     }
 
     /**
