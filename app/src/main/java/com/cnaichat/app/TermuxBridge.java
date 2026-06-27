@@ -257,15 +257,17 @@ public class TermuxBridge {
                 }
                 serverKillTime = 0;
             }
-            // 发送命令前清理旧进度文件，避免轮询读到上次的结果
-            cleanupProgressFiles();
+            // 生成唯一的进度文件名，传给 Python 和轮询器
+            String progressFile = PROGRESS_DIR + "/" + PROGRESS_PREFIX + callbackId + ".txt";
+            // 发送命令前清理自己的进度文件（如果有残留）
+            cleanupProgressFile(progressFile);
             String result;
             // 优先走 HTTP 通道（不受后台冻结影响）
             if (isServerAvailable()) {
-                startHttpProgressPoller(callbackId, webView, activity, timeoutSecs);
-                result = executeViaHttp(command, workDir, timeoutSecs);
+                startHttpProgressPoller(callbackId, webView, activity, timeoutSecs, progressFile);
+                result = executeViaHttp(command, workDir, timeoutSecs, progressFile);
                 stopHttpProgressPoller(callbackId);
-                cleanupProgressFiles();
+                cleanupProgressFile(progressFile);
                 if (result == null) {
                     // HTTP 失败，回退文件轮询
                     new Handler(Looper.getMainLooper()).post(() -> {
@@ -277,10 +279,10 @@ public class TermuxBridge {
                 // 服务器不可用，尝试启动
                 tryStartServer();
                 if (isServerAvailable()) {
-                    startHttpProgressPoller(callbackId, webView, activity, timeoutSecs);
-                    result = executeViaHttp(command, workDir, timeoutSecs);
+                    startHttpProgressPoller(callbackId, webView, activity, timeoutSecs, progressFile);
+                    result = executeViaHttp(command, workDir, timeoutSecs, progressFile);
                     stopHttpProgressPoller(callbackId);
-                    cleanupProgressFiles();
+                    cleanupProgressFile(progressFile);
                     if (result == null) {
                         new Handler(Looper.getMainLooper()).post(() -> {
                             android.widget.Toast.makeText(context, "HTTP 通道失败，回退文件轮询", android.widget.Toast.LENGTH_SHORT).show();
@@ -328,10 +330,10 @@ public class TermuxBridge {
     /**
      * 启动 HTTP 进度轮询线程
      */
-    private void startHttpProgressPoller(String callbackId, WebView webView, Activity activity, int timeoutSecs) {
+    private void startHttpProgressPoller(String callbackId, WebView webView, Activity activity, int timeoutSecs, String progressFile) {
         httpProgressRunning.put(callbackId, true);
         new Thread(() -> {
-            Log.d(TAG, "HTTP 进度轮询启动: " + callbackId);
+            Log.d(TAG, "HTTP 进度轮询启动: " + callbackId + " file=" + progressFile);
             String lastContent = "";
             long startTime = System.currentTimeMillis();
             long deadline = startTime + (timeoutSecs + 10) * 1000L;
@@ -345,8 +347,8 @@ public class TermuxBridge {
                     break;
                 }
 
-                // 找最新的进度文件
-                String content = readLatestProgressFile();
+                // 读指定进度文件
+                String content = readProgressFile(progressFile);
                 if (content != null && !content.equals(lastContent)) {
                     lastContent = content;
                     final String progress = content;
@@ -376,34 +378,31 @@ public class TermuxBridge {
     }
 
     /**
-     * 读取最新的进度文件
+     * 读取指定进度文件
      */
-    private String readLatestProgressFile() {
+    private String readProgressFile(String filePath) {
+        if (filePath == null) return null;
         try {
-            File dir = new File(PROGRESS_DIR);
-            if (!dir.exists()) return null;
-            File[] files = dir.listFiles((d, name) ->
-                    name.startsWith(PROGRESS_PREFIX) && name.endsWith(".txt"));
-            if (files == null || files.length == 0) return null;
-            // 取最新修改的文件
-            File latest = files[0];
-            for (File f : files) {
-                if (f.lastModified() > latest.lastModified()) {
-                    latest = f;
-                }
-            }
-            // 只读最近修改 1 小时内的文件（避免读到旧文件）
-            if (System.currentTimeMillis() - latest.lastModified() > 3600000) {
-                return null;
-            }
-            return readOutputFile(latest.getAbsolutePath(), false);
+            return readOutputFile(filePath, false);
         } catch (Exception e) {
             return null;
         }
     }
 
     /**
-     * 清理所有进度文件
+     * 清理指定进度文件
+     */
+    private void cleanupProgressFile(String progressFile) {
+        if (progressFile == null) return;
+        try {
+            new File(progressFile).delete();
+        } catch (Exception e) {
+            Log.w(TAG, "清理进度文件失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 清理所有进度文件（仅页面刷新时用）
      */
     private void cleanupProgressFiles() {
         try {
@@ -589,13 +588,14 @@ public class TermuxBridge {
      * 通过 HTTP 通道执行命令
      * @return JSON 结果字符串，null 表示失败（应回退到文件轮询）
      */
-    private String executeViaHttp(String command, String workDir, int timeoutSec) {
+    private String executeViaHttp(String command, String workDir, int timeoutSec, String progressFile) {
         HttpURLConnection conn = null;
         try {
             JSONObject req = new JSONObject();
             req.put("command", command);
             req.put("timeout", timeoutSec);
             if (workDir != null) req.put("workdir", workDir);
+            if (progressFile != null) req.put("output_file", progressFile);
             byte[] body = req.toString().getBytes("UTF-8");
 
             conn = (HttpURLConnection) new URL(SERVER_URL + "/exec").openConnection();

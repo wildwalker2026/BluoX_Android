@@ -80,6 +80,7 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
             cmd = req.get('command', '')
             timeout = req.get('timeout', DEFAULT_TIMEOUT)
             workdir = req.get('workdir')
+            output_file = req.get('output_file')
         except (json.JSONDecodeError, TypeError):
             pass
 
@@ -91,8 +92,9 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
             env = os.environ.copy()
             env['TERM'] = 'xterm-256color'
 
-            # 进度文件：用 tee 让 shell 自己写，Python 不碰管道读取
-            output_file = '/sdcard/Download/Bluox/Notes/.termux_http_out_{}.txt'.format(int(time.time() * 1000))
+            # 进度文件：优先用 Java 传入的路径，否则自动生成
+            if not output_file:
+                output_file = '/sdcard/Download/Bluox/Notes/.termux_http_out_{}.txt'.format(int(time.time() * 1000))
             # 用 tee 包装命令：输出同时写到管道和进度文件
             wrapped_cmd = '{ ' + cmd + ' ; } 2>&1 | stdbuf -oL tee ' + output_file
 
