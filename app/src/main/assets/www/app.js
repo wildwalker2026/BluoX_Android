@@ -382,12 +382,10 @@ const topicLoadingOverlay = document.getElementById('topicLoadingOverlay');
 // 聊天菜单 DOM 元素
 const chatMenuContainer = document.getElementById('chatMenuContainer');
 const chatMenuBtn = document.getElementById('chatMenuBtn');
-// 移入输入框同一行：更多操作 + 发送按钮
+// 移入输入框同一行：更多操作
 (function(){
     var tr = document.querySelector('.input-textarea-row');
     if(chatMenuContainer && tr) tr.appendChild(chatMenuContainer);
-    var sb = document.getElementById('sendBtn');
-    if(sb && tr) tr.appendChild(sb);
 })();
 const importChatInput = document.getElementById('importChatInput');
 

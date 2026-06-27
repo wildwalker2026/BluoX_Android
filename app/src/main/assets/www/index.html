@@ -173,13 +173,6 @@
                         <input type="file" id="importChatInput" accept=".json"
                             style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;">
                     </div>
-                    <button class="send-btn" id="sendBtn">
-                        <svg class="send-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2">
-                            <line x1="22" y1="2" x2="11" y2="13"></line>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                        </svg>
-                    </button>
                 </div>
             </div>
             <!-- 图片预览区 -->
@@ -192,6 +185,8 @@
             </div>
             <!-- 底部信息栏：模型名称和tokens信息 -->
             <div class="bottom-info-bar" id="bottomInfoBar">
+                <!-- 发送按钮 -->
+                <button class="send-btn" id="sendBtn">发送</button>
                 <div class="current-model-bar" id="currentModelBar">
                     <span class="current-model-name" id="currentModelName">qwen-plus</span>
                     <span class="ai-disclaimer">AI 生成内容仅供参考</span>

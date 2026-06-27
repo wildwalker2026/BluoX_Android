@@ -473,6 +473,7 @@ public class TermuxBridge {
     private boolean pingServer() {
         try {
             HttpURLConnection conn = (HttpURLConnection) new URL(SERVER_URL + "/ping").openConnection();
+            conn.setRequestProperty("Connection", "close");
             conn.setConnectTimeout(2000);
             conn.setReadTimeout(2000);
             conn.setRequestMethod("GET");
@@ -599,6 +600,7 @@ public class TermuxBridge {
             byte[] body = req.toString().getBytes("UTF-8");
 
             conn = (HttpURLConnection) new URL(SERVER_URL + "/exec").openConnection();
+            conn.setRequestProperty("Connection", "close");
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
             conn.setConnectTimeout(5000);
