@@ -2926,9 +2926,10 @@ async function executeToolCall(tc) {
                             cb(typeof data === 'string' ? data : JSON.stringify(data));
                         }
                     };
-                    // 进度回调：实时更新 tool-call-result
+                    // 进度回调：实时更新 tool-call-result（用 cbId 映射元素）
+                    window._termuxProgressEls = {};
                     window._onTermuxProgress = function(cbId, progress) {
-                        var el = window._activeTermuxResultEl;
+                        var el = window._termuxProgressEls[cbId];
                         if (el && progress) {
                             var lines = progress.split('\n');
                             var display = lines.slice(-8).join('\n');
@@ -2939,6 +2940,11 @@ async function executeToolCall(tc) {
                 }
 
                 const callbackId = window.AndroidBridge.runTermuxCommand(command, workdir, timeoutSec);
+
+                // 注册进度元素，供 _onTermuxProgress 回调使用
+                if (tc._progressResultEl) {
+                    window._termuxProgressEls[callbackId] = tc._progressResultEl;
+                }
 
                 // 每 200ms 检查 abort，如果用户点击了停止生成则通知 Java 层取消 Termux 命令
                 let termuxAborted = false;
@@ -2960,6 +2966,7 @@ async function executeToolCall(tc) {
                 });
 
                 clearInterval(abortChecker);
+                delete window._termuxProgressEls[callbackId];
                 if (termuxAborted) {
                     return '⏹️ 用户已停止生成，Termux 命令已取消。';
                 }
@@ -3521,9 +3528,9 @@ async function processToolCalls(messages, aiMessageDiv) {
         if (toolName === 'web_search' && toolArgs?.queries) {
             progressTimer = startSearchProgress(progressResultEl, toolArgs.queries.length);
         }
-        // Termux 命令：记录当前 result 元素供进度回调使用
+        // Termux 命令：把 result 元素存到 tc 上，供 executeToolCall 内部使用
         if (toolName === 'run_termux_command') {
-            window._activeTermuxResultEl = progressResultEl;
+            tc._progressResultEl = progressResultEl;
         }
 
         // 2. 执行工具

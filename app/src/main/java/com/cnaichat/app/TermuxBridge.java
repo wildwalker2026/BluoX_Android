@@ -271,7 +271,7 @@ public class TermuxBridge {
                 if (result == null) {
                     // HTTP 失败，回退文件轮询
                     new Handler(Looper.getMainLooper()).post(() -> {
-                        android.widget.Toast.makeText(context, "HTTP 通道失败，回退文件轮询", android.widget.Toast.LENGTH_SHORT).show();
+                        android.widget.Toast.makeText(context, "连接错误，使用直连方案", android.widget.Toast.LENGTH_SHORT).show();
                     });
                     result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
                 }
@@ -285,7 +285,7 @@ public class TermuxBridge {
                     cleanupProgressFile(progressFile);
                     if (result == null) {
                         new Handler(Looper.getMainLooper()).post(() -> {
-                            android.widget.Toast.makeText(context, "HTTP 通道失败，回退文件轮询", android.widget.Toast.LENGTH_SHORT).show();
+                            android.widget.Toast.makeText(context, "连接错误，使用直连方案", android.widget.Toast.LENGTH_SHORT).show();
                         });
                         result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
                     }
