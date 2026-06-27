@@ -281,8 +281,10 @@ public class TermuxBridge {
         String scriptFile = "/sdcard/.termux_cmd_" + ts + ".sh";
         String actualWorkDir = workDir != null ? workDir : TERMUX_HOME;
 
-        // 包装命令：输出重定向到文件 + 追加退出码
-        String wrappedCommand = "{ " + command + " ; } > " + outputFile + " 2>&1 ; echo EXITCODE:$? >> " + outputFile;
+        // 包装命令：输出重定向到文件 + tee 打印并保存日志到笔记目录
+        String logDir = "/sdcard/Download/Bluox/Notes";
+        String logFile = logDir + "/termux_log_" + ts + ".txt";
+        String wrappedCommand = "mkdir -p " + logDir + " ; { " + command + " ; } 2>&1 | tee " + outputFile + " " + logFile + " ; echo EXITCODE:${PIPESTATUS[0]} >> " + outputFile;
 
         Log.d(TAG, "executeViaFile: " + command.substring(0, Math.min(command.length(), 60))
                 + " -> " + outputFile);
