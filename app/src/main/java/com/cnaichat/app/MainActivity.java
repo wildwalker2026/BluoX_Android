@@ -3146,122 +3146,13 @@ public class MainActivity extends Activity {
              */
             @JavascriptInterface
             public String runTermuxCommand(String command, String workDir, int timeoutSec) {
-                String callbackId = "termux_" + System.currentTimeMillis();
-                final String cbId = callbackId;
-                final String cmd = command;
-                final String wDir = workDir != null ? workDir : "/data/data/com.termux/files/home";
-                final int timeout = timeoutSec;
-                final WebView wv = webView;
-
-                new Thread(() -> {
-                    long ts = System.currentTimeMillis();
-                    String outputFile = "/sdcard/.termux_out_" + ts + ".txt";
-                    String scriptFile = "/data/data/com.termux/files/home/.termux_cmd_" + ts + ".sh";
-                    String logDir = "/sdcard/Download/Bluox/Notes";
-                    String logFile = logDir + "/termux_log_" + ts + ".txt";
-
-                    // 写脚本文件：命令输出重定向 + 退出码 + 复制日志到笔记目录
-                    String wrapped = "{ " + cmd + " ; } > " + outputFile + " 2>&1 ; echo EXITCODE:$? >> " + outputFile
-                            + " ; mkdir -p " + logDir + " ; cp " + outputFile + " " + logFile;
-                    try {
-                        java.io.FileWriter fw = new java.io.FileWriter(scriptFile);
-                        fw.write(wrapped);
-                        fw.close();
-                    } catch (Exception e) {
-                        callbackTermux(wv, cbId, "{\"error\":\"写入脚本失败\"}");
-                        return;
-                    }
-
-                    new File(outputFile).delete();
-
-                    // 用 TerminalExecutor 执行 am startservice
-                    String amCmd = "am startservice --user 0"
-                            + " -n com.termux/com.termux.app.RunCommandService"
-                            + " -a com.termux.RUN_COMMAND"
-                            + " --es com.termux.RUN_COMMAND_PATH /data/data/com.termux/files/usr/bin/bash"
-                            + " --esa com.termux.RUN_COMMAND_ARGUMENTS " + scriptFile
-                            + " --es com.termux.RUN_COMMAND_WORKDIR " + wDir
-                            + " --ez com.termux.RUN_COMMAND_BACKGROUND true";
-                    if (terminalExecutor == null) {
-                        terminalExecutor = new TerminalExecutor(MainActivity.this);
-                    }
-                    terminalExecutor.execute(amCmd, 10);
-
-                    // 轮询读取结果
-                    long deadline = System.currentTimeMillis() + timeout * 1000L;
-                    File outFile = new File(outputFile);
-
-                    while (System.currentTimeMillis() < deadline) {
-                        try { Thread.sleep(100); } catch (InterruptedException e) { break; }
-                        if (!outFile.exists() || outFile.length() == 0) continue;
-                        String content = readTermuxOutput(outputFile, false);
-                        if (content != null && content.contains("EXITCODE:")) break;
-                    }
-
-                    // 读取最终结果
-                    String output = readTermuxOutput(outputFile, true);
-                    outFile.delete();
-                    new File(scriptFile).delete();
-
-                    if (output == null) {
-                        callbackTermux(wv, cbId, "{\"error\":\"命令执行超时（" + timeout + "秒）\"}");
-                        return;
-                    }
-
-                    // 解析退出码
-                    int exitCode = -1;
-                    String stdout = output;
-                    int ecIdx = output.lastIndexOf("EXITCODE:");
-                    if (ecIdx >= 0) {
-                        String ecStr = output.substring(ecIdx + 9).trim();
-                        try { exitCode = Integer.parseInt(ecStr); } catch (Exception e) {}
-                        stdout = output.substring(0, ecIdx).trim();
-                    }
-
-                    String json = "{\"exitCode\":" + exitCode
-                            + ",\"stdout\":\"" + escapeTermuxJson(stdout) + "\""
-                            + ",\"stderr\":\"\"}";
-                    callbackTermux(wv, cbId, json);
-                }, "TermuxCmd-" + callbackId).start();
-
-                return callbackId;
-            }
-
-            // === Termux 辅助方法 ===
-
-            private void callbackTermux(WebView wv, String cbId, String json) {
-                runOnUiThread(() -> {
-                    String js = "window._onTermuxResult && window._onTermuxResult('" + cbId + "', " + json + ");";
-                    wv.evaluateJavascript(js, null);
-                });
-            }
-
-            private String readTermuxOutput(String filePath, boolean deleteAfter) {
-                try {
-                    File f = new File(filePath);
-                    if (!f.exists() || !f.canRead()) return null;
-                    java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(f));
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        if (sb.length() > 0) sb.append("\n");
-                        sb.append(line);
-                    }
-                    reader.close();
-                    if (deleteAfter) f.delete();
-                    return sb.toString();
-                } catch (Exception e) {
-                    return null;
+                if (termuxBridge == null) {
+                    termuxBridge = new TermuxBridge(MainActivity.this);
                 }
-            }
-
-            private String escapeTermuxJson(String s) {
-                if (s == null) return "";
-                return s.replace("\\", "\\\\")
-                        .replace("\"", "\\\"")
-                        .replace("\n", "\\n")
-                        .replace("\r", "\\r")
-                        .replace("\t", "\\t");
+                String callbackId = "termux_" + System.currentTimeMillis();
+                termuxBridge.executeAsync(command, workDir, callbackId,
+                        webView, MainActivity.this, timeoutSec);
+                return callbackId;
             }
 
             /**

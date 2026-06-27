@@ -236,7 +236,7 @@ public class TermuxBridge {
         }, timeoutSecs * 1000L);
 
         new Thread(() -> {
-            String result = executeViaFile(command, workDir, timeoutSecs, callbackId);
+            String result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
             activeCallbacks.remove(callbackId);
             synchronized (callbackLock) {
                 if (callbackCalled[0]) return;
@@ -275,16 +275,17 @@ public class TermuxBridge {
      * @return JSON 结果字符串
      */
     private String executeViaFile(String command, String workDir, int timeoutSec,
-                                  String callbackId) {
+                                  String callbackId, WebView webView, Activity activity) {
         long ts = System.currentTimeMillis();
         String outputFile = "/sdcard/.termux_out_" + ts + ".txt";
         String scriptFile = "/sdcard/.termux_cmd_" + ts + ".sh";
         String actualWorkDir = workDir != null ? workDir : TERMUX_HOME;
 
-        // 包装命令：输出重定向到文件 + tee 打印并保存日志到笔记目录
+        // 包装命令：输出重定向到文件 + 追加退出码 + 复制日志到笔记目录
         String logDir = "/sdcard/Download/Bluox/Notes";
         String logFile = logDir + "/termux_log_" + ts + ".txt";
-        String wrappedCommand = "mkdir -p " + logDir + " ; { " + command + " ; } 2>&1 | tee " + outputFile + " " + logFile + " ; echo EXITCODE:${PIPESTATUS[0]} >> " + outputFile;
+        String wrappedCommand = "{ " + command + " ; } > " + outputFile + " 2>&1 ; echo EXITCODE:$? >> " + outputFile
+                + " ; mkdir -p " + logDir + " ; cp " + outputFile + " " + logFile;
 
         Log.d(TAG, "executeViaFile: " + command.substring(0, Math.min(command.length(), 60))
                 + " -> " + outputFile);
@@ -326,9 +327,11 @@ public class TermuxBridge {
         // 短暂等待确保 am 有时间发送 Intent
         try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
 
-        // 轮询等待输出文件
+        // 轮询等待输出文件，每 300ms 推送进度到前端
         long deadline = System.currentTimeMillis() + timeoutSec * 1000L;
         File outFile = new File(outputFile);
+        long lastProgressTime = 0;
+        String lastProgressContent = "";
 
         while (System.currentTimeMillis() < deadline) {
             if (callbackId != null && cancelledCallbacks.containsKey(callbackId)) {
@@ -352,6 +355,19 @@ public class TermuxBridge {
 
             String currentContent = readOutputFile(outputFile, false);
             if (currentContent == null) continue;
+
+            // 推送进度（每 300ms，内容有变化时）
+            long now = System.currentTimeMillis();
+            if (now - lastProgressTime >= 300 && !currentContent.equals(lastProgressContent)) {
+                lastProgressTime = now;
+                lastProgressContent = currentContent;
+                final String progress = currentContent;
+                activity.runOnUiThread(() -> {
+                    String js = "window._onTermuxProgress && window._onTermuxProgress('"
+                            + callbackId + "', '" + escapeJson(progress) + "');";
+                    webView.evaluateJavascript(js, null);
+                });
+            }
 
             if (currentContent.contains("EXITCODE:")) break;
         }

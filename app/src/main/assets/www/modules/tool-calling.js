@@ -2926,6 +2926,16 @@ async function executeToolCall(tc) {
                             cb(typeof data === 'string' ? data : JSON.stringify(data));
                         }
                     };
+                    // 进度回调：实时更新 tool-call-result
+                    window._onTermuxProgress = function(cbId, progress) {
+                        var el = window._activeTermuxResultEl;
+                        if (el && progress) {
+                            var lines = progress.split('\n');
+                            var display = lines.slice(-8).join('\n');
+                            el.innerHTML = '▶ <pre style="margin:0;white-space:pre-wrap;font-family:inherit;">' + escapeHtml(display) + '</pre>';
+                            el.scrollTop = el.scrollHeight;
+                        }
+                    };
                 }
 
                 const callbackId = window.AndroidBridge.runTermuxCommand(command, workdir, timeoutSec);
@@ -3510,6 +3520,10 @@ async function processToolCalls(messages, aiMessageDiv) {
         let progressTimer = null;
         if (toolName === 'web_search' && toolArgs?.queries) {
             progressTimer = startSearchProgress(progressResultEl, toolArgs.queries.length);
+        }
+        // Termux 命令：记录当前 result 元素供进度回调使用
+        if (toolName === 'run_termux_command') {
+            window._activeTermuxResultEl = progressResultEl;
         }
 
         // 2. 执行工具
