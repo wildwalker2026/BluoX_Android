@@ -14,6 +14,7 @@ import time
 import signal
 import sys
 import socket
+import select
 import traceback
 
 PORT = 8765
@@ -98,8 +99,13 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
             env = os.environ.copy()
             env['TERM'] = 'xterm-256color'
 
+            # 进度文件：用 tee 让 shell 自己写，Python 不碰管道读取
+            output_file = '/sdcard/Download/Bluox/Notes/.termux_http_out_{}.txt'.format(int(time.time() * 1000))
+            # 用 tee 包装命令：输出同时写到管道和进度文件
+            wrapped_cmd = '{ ' + cmd + ' ; } 2>&1 | stdbuf -oL tee ' + output_file
+
             proc = subprocess.Popen(
-                ['/data/data/com.termux/files/usr/bin/bash', '-c', cmd],
+                ['/data/data/com.termux/files/usr/bin/bash', '-c', wrapped_cmd],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 cwd=workdir if workdir and os.path.isdir(workdir) else None,
@@ -121,10 +127,10 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
                     except Exception:
                         proc.kill()
                     proc.wait()
-                    output = proc.stdout.read().decode('utf-8', errors='replace')
+                    stdout = proc.stdout.read().decode('utf-8', errors='replace')
                     self._send_json(200, {
                         'exitCode': -1,
-                        'output': '命令执行超时（{}秒），已终止\n{}'.format(timeout, output)
+                        'output': '命令执行超时（{}秒），已终止\n{}'.format(timeout, stdout)
                     })
                     return
                 # 关键：用 IO 等待代替 time.sleep，避免被冻结
@@ -143,6 +149,15 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
 
         except Exception as e:
             self._send_json(500, {'error': str(e)})
+
+    @staticmethod
+    def _save_output(filepath, content):
+        """将当前输出写入文件，供外部读取运行进度"""
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(content)
+        except Exception:
+            pass
 
 
 def graceful_shutdown(signum, frame):
