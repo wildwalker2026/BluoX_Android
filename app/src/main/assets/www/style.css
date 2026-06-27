@@ -5683,10 +5683,6 @@ body.dark-theme .topic-drawer-btn svg {
 /* 底部信息区域 */
 .topic-drawer-info {
     padding: 12px 16px calc(16px + 20px);
-}
-
-body.landscape-mode .topic-drawer-info {
-    padding-bottom: 16px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -5695,6 +5691,10 @@ body.landscape-mode .topic-drawer-info {
     border-left: 1px solid var(--border-color);
     border-right: 1px solid var(--border-color);
     margin: 0 8px;
+}
+
+body.landscape-mode .topic-drawer-info {
+    padding-bottom: 16px;
 }
 .topic-drawer-info::before {
     content: '';
