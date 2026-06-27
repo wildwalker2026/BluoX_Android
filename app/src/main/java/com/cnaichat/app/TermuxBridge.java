@@ -263,6 +263,10 @@ public class TermuxBridge {
                         result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
                     }
                 } else {
+                    // 服务器启动失败，降级到文件轮询通道
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        android.widget.Toast.makeText(context, "检查termux是否在后台开启", android.widget.Toast.LENGTH_LONG).show();
+                    });
                     result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
                 }
             }
@@ -382,9 +386,6 @@ public class TermuxBridge {
                 serverAvailable = true;
                 Log.i(TAG, "HTTP 命令服务器已启动");
                 // 在主线程显示 Toast
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    android.widget.Toast.makeText(context, "Termux 命令服务器已启动", android.widget.Toast.LENGTH_SHORT).show();
-                });
                 return;
             }
         }
