@@ -8,14 +8,10 @@ Termux 命令执行服务器
 import http.server
 import json
 import subprocess
-import threading
 import os
 import time
 import signal
-import sys
 import socket
-import select
-import traceback
 
 PORT = 8765
 MAX_OUTPUT = 200000
@@ -32,10 +28,6 @@ def io_sleep(seconds):
     finally:
         a.close()
         b.close()
-
-active_threads = set()
-active_lock = threading.Lock()
-
 
 class CommandHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
@@ -61,7 +53,7 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
                 'status': 'ok',
                 'pid': os.getpid(),
                 'uptime': int(time.time() - START_TIME),
-                'active_commands': len(active_threads)
+                'active_commands': 0
             })
         else:
             self._send_json(404, {'error': 'not found'})
@@ -149,15 +141,6 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
 
         except Exception as e:
             self._send_json(500, {'error': str(e)})
-
-    @staticmethod
-    def _save_output(filepath, content):
-        """将当前输出写入文件，供外部读取运行进度"""
-        try:
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(content)
-        except Exception:
-            pass
 
 
 def graceful_shutdown(signum, frame):

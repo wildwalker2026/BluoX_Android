@@ -68,6 +68,8 @@ public class TermuxBridge {
     private static volatile Boolean serverAvailable = null;
     private static volatile long lastPingTime = 0;
     private static final long PING_CACHE_MS = 5000; // 5 秒内不重复 ping
+    private static volatile long serverKillTime = 0; // onPageFinished 杀进程的时间戳
+    private static final long SERVER_COOLDOWN_MS = 5000; // 杀进程后 5 秒冷却期
 
     // 已取消的异步命令 callbackId 集合
     private static final ConcurrentHashMap<String, Boolean> cancelledCallbacks = new ConcurrentHashMap<>();
@@ -246,20 +248,43 @@ public class TermuxBridge {
         }, effectiveTimeout * 1000L);
 
         new Thread(() -> {
+            // 如果 onPageFinished 刚杀了进程，等待冷却期结束
+            if (serverKillTime > 0) {
+                long waitMs = SERVER_COOLDOWN_MS - (System.currentTimeMillis() - serverKillTime);
+                if (waitMs > 0) {
+                    Log.d(TAG, "服务器冷却期，等待 " + waitMs + "ms");
+                    try { Thread.sleep(waitMs); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                }
+                serverKillTime = 0;
+            }
+            // 发送命令前清理旧进度文件，避免轮询读到上次的结果
+            cleanupProgressFiles();
             String result;
             // 优先走 HTTP 通道（不受后台冻结影响）
             if (isServerAvailable()) {
+                startHttpProgressPoller(callbackId, webView, activity, timeoutSecs);
                 result = executeViaHttp(command, workDir, timeoutSecs);
+                stopHttpProgressPoller(callbackId);
+                cleanupProgressFiles();
                 if (result == null) {
                     // HTTP 失败，回退文件轮询
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        android.widget.Toast.makeText(context, "HTTP 通道失败，回退文件轮询", android.widget.Toast.LENGTH_SHORT).show();
+                    });
                     result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
                 }
             } else {
                 // 服务器不可用，尝试启动
                 tryStartServer();
                 if (isServerAvailable()) {
+                    startHttpProgressPoller(callbackId, webView, activity, timeoutSecs);
                     result = executeViaHttp(command, workDir, timeoutSecs);
+                    stopHttpProgressPoller(callbackId);
+                    cleanupProgressFiles();
                     if (result == null) {
+                        new Handler(Looper.getMainLooper()).post(() -> {
+                            android.widget.Toast.makeText(context, "HTTP 通道失败，回退文件轮询", android.widget.Toast.LENGTH_SHORT).show();
+                        });
                         result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
                     }
                 } else {
@@ -290,6 +315,139 @@ public class TermuxBridge {
         for (String cbId : activeCallbacks.keySet()) {
             cancelledCallbacks.put(cbId, true);
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  HTTP 进度轮询：HTTP 阻塞期间扫描 tee 进度文件推送到前端
+    // ═══════════════════════════════════════════════════════════
+
+    private static final String PROGRESS_DIR = "/sdcard/Download/Bluox/Notes";
+    private static final String PROGRESS_PREFIX = ".termux_http_out_";
+    private final ConcurrentHashMap<String, Boolean> httpProgressRunning = new ConcurrentHashMap<>();
+
+    /**
+     * 启动 HTTP 进度轮询线程
+     */
+    private void startHttpProgressPoller(String callbackId, WebView webView, Activity activity, int timeoutSecs) {
+        httpProgressRunning.put(callbackId, true);
+        new Thread(() -> {
+            Log.d(TAG, "HTTP 进度轮询启动: " + callbackId);
+            String lastContent = "";
+            long startTime = System.currentTimeMillis();
+            long deadline = startTime + (timeoutSecs + 10) * 1000L;
+
+            while (httpProgressRunning.get(callbackId) != null
+                    && httpProgressRunning.get(callbackId)
+                    && System.currentTimeMillis() < deadline) {
+                // 检查取消
+                if (cancelledCallbacks.containsKey(callbackId)) {
+                    Log.d(TAG, "HTTP 进度轮询被取消: " + callbackId);
+                    break;
+                }
+
+                // 找最新的进度文件
+                String content = readLatestProgressFile();
+                if (content != null && !content.equals(lastContent)) {
+                    lastContent = content;
+                    final String progress = content;
+                    activity.runOnUiThread(() -> {
+                        String js = "window._onTermuxProgress && window._onTermuxProgress(\""
+                                + callbackId + "\", \"" + escapeJson(progress) + "\");";
+                        webView.evaluateJavascript(js, null);
+                    });
+                }
+
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+            httpProgressRunning.remove(callbackId);
+            Log.d(TAG, "HTTP 进度轮询结束: " + callbackId);
+        }, "HttpProgress-" + callbackId).start();
+    }
+
+    /**
+     * 停止 HTTP 进度轮询线程
+     */
+    private void stopHttpProgressPoller(String callbackId) {
+        httpProgressRunning.put(callbackId, false);
+    }
+
+    /**
+     * 读取最新的进度文件
+     */
+    private String readLatestProgressFile() {
+        try {
+            File dir = new File(PROGRESS_DIR);
+            if (!dir.exists()) return null;
+            File[] files = dir.listFiles((d, name) ->
+                    name.startsWith(PROGRESS_PREFIX) && name.endsWith(".txt"));
+            if (files == null || files.length == 0) return null;
+            // 取最新修改的文件
+            File latest = files[0];
+            for (File f : files) {
+                if (f.lastModified() > latest.lastModified()) {
+                    latest = f;
+                }
+            }
+            // 只读最近修改 1 小时内的文件（避免读到旧文件）
+            if (System.currentTimeMillis() - latest.lastModified() > 3600000) {
+                return null;
+            }
+            return readOutputFile(latest.getAbsolutePath(), false);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 清理所有进度文件
+     */
+    private void cleanupProgressFiles() {
+        try {
+            File dir = new File(PROGRESS_DIR);
+            if (!dir.exists()) return;
+            File[] files = dir.listFiles((d, name) ->
+                    name.startsWith(PROGRESS_PREFIX) && name.endsWith(".txt"));
+            if (files == null) return;
+            for (File f : files) {
+                f.delete();
+            }
+            Log.d(TAG, "已清理进度文件: " + files.length + " 个");
+        } catch (Exception e) {
+            Log.w(TAG, "清理进度文件失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 页面重新加载时杀掉服务器进程并设置冷却期
+     */
+    public static void killServerOnPageReload() {
+        serverKillTime = System.currentTimeMillis();
+        serverAvailable = null;
+        new Thread(() -> {
+            try {
+                String killScript = "/sdcard/.termux_kill_server.sh";
+                java.io.FileWriter fw = new java.io.FileWriter(killScript);
+                fw.write("pkill -f termux_server.py 2>/dev/null\n");
+                fw.close();
+                String amCmd = "am startservice --user 0" +
+                        " -n com.termux/com.termux.app.RunCommandService" +
+                        " -a com.termux.RUN_COMMAND" +
+                        " --es com.termux.RUN_COMMAND_PATH /data/data/com.termux/files/usr/bin/bash" +
+                        " --esa com.termux.RUN_COMMAND_ARGUMENTS " + killScript +
+                        " --es com.termux.RUN_COMMAND_WORKDIR /data/data/com.termux/files/home" +
+                        " --ez com.termux.RUN_COMMAND_BACKGROUND true";
+                ProcessBuilder pb = new ProcessBuilder("/system/bin/sh", "-c",
+                        amCmd + " > /dev/null 2>&1 &");
+                pb.start();
+                Log.d(TAG, "onPageFinished 已发送 kill 命令");
+            } catch (Exception e) {
+                Log.w(TAG, "onPageFinished kill 失败: " + e.getMessage());
+            }
+        }).start();
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -596,8 +754,8 @@ public class TermuxBridge {
                 lastProgressContent = currentContent;
                 final String progress = currentContent;
                 activity.runOnUiThread(() -> {
-                    String js = "window._onTermuxProgress && window._onTermuxProgress('"
-                            + callbackId + "', '" + escapeJson(progress) + "');";
+                    String js = "window._onTermuxProgress && window._onTermuxProgress(\""
+                            + callbackId + "\", \"" + escapeJson(progress) + "\");";
                     webView.evaluateJavascript(js, null);
                 });
             }

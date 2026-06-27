@@ -399,7 +399,8 @@ public class MainActivity extends Activity {
                 }
                 Log.d("AdSdk", "onPageFinished");
 
-                // Termux HTTP 服务器延迟启动：等首次执行命令时按需启动
+                // 页面重新加载时杀掉旧服务器进程，并设置 5 秒冷却期
+                TermuxBridge.killServerOnPageReload();
             }
 
             @Override
