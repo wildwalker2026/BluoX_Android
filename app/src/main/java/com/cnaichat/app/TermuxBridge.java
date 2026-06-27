@@ -295,7 +295,7 @@ public class TermuxBridge {
     /**
      * 检查 HTTP 服务器是否可用（5 秒缓存）
      */
-    private boolean isServerAvailable() {
+    public boolean isServerAvailable() {
         // 5 秒内的检测结果直接复用
         if (serverAvailable != null && serverAvailable
                 && System.currentTimeMillis() - lastPingTime < PING_CACHE_MS) {
@@ -326,7 +326,7 @@ public class TermuxBridge {
     /**
      * 尝试启动 HTTP 服务器
      */
-    private void tryStartServer() {
+    public void tryStartServer() {
         File script = new File(SERVER_SCRIPT);
         if (!script.exists()) {
             Log.w(TAG, "服务器脚本不存在: " + SERVER_SCRIPT);

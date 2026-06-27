@@ -398,6 +398,18 @@ public class MainActivity extends Activity {
                     Log.d("Orientation", "onPageFinished 通知横屏状态");
                 }
                 Log.d("AdSdk", "onPageFinished");
+
+                // 页面加载完成后，后台预启动 Termux HTTP 命令服务器
+                new Thread(() -> {
+                    try {
+                        TermuxBridge bridge = new TermuxBridge(MainActivity.this);
+                        if (!bridge.isServerAvailable()) {
+                            bridge.tryStartServer();
+                        }
+                    } catch (Exception e) {
+                        Log.w("TermuxServer", "预启动失败: " + e.getMessage());
+                    }
+                }, "TermuxServerPreStart").start();
             }
 
             @Override
