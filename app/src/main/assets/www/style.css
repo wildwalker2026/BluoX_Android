@@ -2434,22 +2434,8 @@ body.dark-theme .thinking-budget-close {
     font-size: 15px;
     font-weight: 500;
     cursor: pointer;
-    opacity: 0;
-    transform: translateY(-10px);
-    max-height: 0;
-    margin: 0;
-    padding: 0 16px;
-    overflow: hidden;
-    pointer-events: none;
-    transition: opacity 0.25s ease, transform 0.25s ease, max-height 0.25s ease, padding 0.25s ease, margin 0.25s ease;
-}
-
-.send-btn.visible {
-    opacity: 1;
-    transform: translateY(0);
-    max-height: 60px;
-    margin: 4px 0;
     padding: 10px 16px;
+    margin: 4px 0;
     pointer-events: auto;
 }
 
@@ -2460,6 +2446,14 @@ body.dark-theme .thinking-budget-close {
 /* 极简浅色模式：发送按钮文字改为黑色 */
 body.minimal-theme:not(.dark-theme) .send-btn {
     color: #000000;
+    background-color: transparent;
+    border: 1px solid var(--text-secondary);
+}
+
+/* 极简深色模式：发送按钮透明背景+白边框 */
+body.dark-theme.minimal-theme .send-btn {
+    background-color: transparent;
+    border: 1px solid var(--text-secondary);
 }
 
 .send-btn :hover[a-non-existent-attr] {
