@@ -5014,7 +5014,7 @@ function toggleAgentTopics(agentId) {
 
     // 新建话题按钮（放最上面）
     contentHtml += `
-        <div style="padding:12px 16px 4px;">
+        <div style="padding:8px 16px 4px;">
             <button class="new-topic-in-panel-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;border:1px dashed var(--border-color);border-radius:10px;background:none;cursor:pointer;font-size:14px;color:var(--text-primary);transition:background-color 0.2s;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -5025,18 +5025,16 @@ function toggleAgentTopics(agentId) {
         </div>
     `;
 
-    contentHtml += '<div class="topic-list-in-panel">';
+    contentHtml += '<div class="bs-grid bs-grid-cols-2" style="padding: 4px 12px 12px;">';
 
     if (topicsWithContent.length > 0) {
         topicsWithContent.forEach(topic => {
             const isActive = agentId === currentAgentId && topic.id === currentTopicId;
             const roundCount = getTopicRoundCount(agentId, topic.id);
             contentHtml += `
-                <div class="bs-item ${isActive ? 'active' : ''}" data-agent-id="${agentId}" data-topic-id="${topic.id}">
-                    <div class="bs-item-left" style="flex:none">
-                        <span>${topic.name}</span>
-                    </div>
-                    ${roundCount > 0 ? `<span style="font-size:12px;color:var(--text-secondary);flex-shrink:0;">${roundCount} 轮</span>` : ''}
+                <div class="bs-item bs-item-grid ${isActive ? 'active' : ''}" data-agent-id="${agentId}" data-topic-id="${topic.id}">
+                    <span class="bs-item-label">${topic.name}</span>
+                    ${roundCount > 0 ? `<span style="font-size:10px;color:var(--text-secondary);margin-top:2px;">${roundCount} 轮</span>` : ''}
                 </div>
             `;
         });
@@ -15141,26 +15139,29 @@ let getApiKeySheet = null;
 function openGetApiKeySheet() {
     if (getApiKeySheet) { getApiKeySheet.hide(); getApiKeySheet = null; }
 
-    // 构建服务商链接列表
-    let listHtml = '';
-    for (const [key, info] of Object.entries(apiKeyUrls)) {
+    // 构建服务商网格卡片
+    let gridHtml = '';
+    const entries = Object.entries(apiKeyUrls);
+    entries.forEach(([key, info]) => {
         const iconPath = getProviderIconPath(key);
         let iconHtml = '';
         if (iconPath) {
-            iconHtml = `<span class="bs-item-icon"><img src="${iconPath}" alt="${info.name}" style="width: 18px; height: 18px;"></span>`;
+            iconHtml = `<span class="bs-item-icon"><img src="${iconPath}" alt="${info.name}" style="width: 22px; height: 22px;"></span>`;
         }
-        listHtml += `<a class="bs-item" href="${info.url}" target="_blank" style="text-decoration: none; color: inherit;">
-            <span class="bs-item-left" style="justify-content: center;">${iconHtml}<span>${info.name}</span></span>
-        </a>`;
-    }
+        gridHtml += `
+            <a class="bs-item bs-item-grid" href="${info.url}" target="_blank" style="text-decoration: none; color: inherit;">
+                ${iconHtml}
+                <span class="bs-item-label">${info.name}</span>
+            </a>`;
+    });
 
     getApiKeySheet = createBottomSheetPanel({
         title: '获取 API Key',
         content: `
-            <div style="padding: 0 16px 8px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; text-align: center;">
+            <div style="padding: 4px 16px 8px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; text-align: center;">
                 请选择服务商创建 API Key。千问与豆包为新用户提供丰厚的免费Token额度。
             </div>
-            <div class="bs-model-list">${listHtml}</div>
+            <div class="bs-grid bs-grid-cols-2" style="padding-top: 0;">${gridHtml}</div>
         `,
         onClose: () => { getApiKeySheet = null; },
     });
@@ -15673,17 +15674,17 @@ function openHistoryModelsModal() {
             <div class="bs-search-box">
                 <input type="text" id="bsHistorySearchInput" placeholder="搜索模型" maxlength="50">
             </div>
-            <div class="bs-model-list" id="bsHistoryModelsList"></div>
+            <div class="bs-grid bs-grid-cols-2" id="bsHistoryModelsGrid" style="padding-top: 4px;"></div>
         `,
         onClose: () => { historyModelsSheet = null; },
     });
     historyModelsSheet.show();
 
     const bsSearchInput = document.getElementById('bsHistorySearchInput');
-    const bsList = document.getElementById('bsHistoryModelsList');
+    const bsGrid = document.getElementById('bsHistoryModelsGrid');
 
     function renderBsHistoryModels(searchKeyword = '') {
-        bsList.innerHTML = '';
+        bsGrid.innerHTML = '';
         const filteredModels = searchKeyword
             ? frequentModels.filter(model =>
                 model.modelName.toLowerCase().includes(searchKeyword.toLowerCase()) ||
@@ -15691,7 +15692,7 @@ function openHistoryModelsModal() {
             )
             : frequentModels;
         if (filteredModels.length === 0) {
-            bsList.innerHTML = searchKeyword
+            bsGrid.innerHTML = searchKeyword
                 ? '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">未找到匹配的模型</div>'
                 : '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">暂无使用记录</div>';
             return;
@@ -15699,7 +15700,7 @@ function openHistoryModelsModal() {
         filteredModels.forEach(model => {
             const item = document.createElement('button');
             item.type = 'button';
-            item.className = 'bs-item';
+            item.className = 'bs-item bs-item-grid';
             if (model.provider === currentAIProvider && model.modelId === selectedModel) {
                 item.classList.add('active');
             }
@@ -15721,12 +15722,15 @@ function openHistoryModelsModal() {
             const providerIcon = getProviderIconPath(model.provider);
             let iconHtml = '';
             if (providerIcon) {
-                iconHtml = `<span class="bs-item-icon"><img src="${providerIcon}" alt="${providerName}" style="width: 18px; height: 18px;"></span>`;
+                iconHtml = `<span class="bs-item-icon"><img src="${providerIcon}" alt="${providerName}" style="width: 20px; height: 20px;"></span>`;
             }
             item.innerHTML = `
-                <span class="bs-item-left">${iconHtml}<span>${model.modelName} <small style="color:var(--text-secondary)">${providerName}</small></span></span>
-                <button class="model-item-delete" title="删除记录"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                ${iconHtml}
+                <span class="bs-item-label">${model.modelName}</span>
+                <small style="font-size:10px;color:var(--text-secondary);">${providerName}</small>
+                <button class="model-item-delete" title="删除记录" style="position:absolute;top:2px;right:2px;width:22px;height:22px;border:none;background:rgba(0,0,0,0.1);border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);opacity:0.6;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
             `;
+            item.style.position = 'relative';
             // 删除按钮
             item.querySelector('.model-item-delete').addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -15741,7 +15745,7 @@ function openHistoryModelsModal() {
                 switchToFrequentModel(model.provider, model.modelId);
                 if (historyModelsSheet) { historyModelsSheet.hide(); historyModelsSheet = null; }
             });
-            bsList.appendChild(item);
+            bsGrid.appendChild(item);
         });
     }
 
