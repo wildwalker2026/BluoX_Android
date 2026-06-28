@@ -205,7 +205,7 @@ if __name__ == '__main__':
     server = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), CommandHandler)
     server.daemon_threads = True
 
-    print(f'Termux 命令服务器已启动: http://127.0.0.1:{PORT}')
+    print(f'Termux 命令服务器已启动')
     print(f'PID: {os.getpid()}')
 
     try:
