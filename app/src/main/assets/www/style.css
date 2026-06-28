@@ -112,6 +112,7 @@ body .message-content {
     --text-primary: #1f1f1f;
     --text-secondary: #6b7280;
     --border-color: #d1d5db;
+    --tag-bg: #f0f0f0;
     --deep-thinking-on: #10b981;
     --deep-thinking-off: #9ca3af;
     --ai-msg-bg: rgba(255, 255, 255, 0.95);
@@ -134,6 +135,7 @@ body.sunset-theme {
     --text-primary: #4A3520;
     --text-secondary: #8B7355;
     --border-color: #E8D5A8;
+    --tag-bg: #F5EDD6;
     --ai-msg-bg: rgba(255, 253, 245, 0.95);
     --frosted-light: rgba(255, 253, 245, 0.8);
     --frosted-heavy: rgba(255, 253, 245, 0.85);
@@ -149,6 +151,7 @@ body.dark-theme {
     --text-primary: #e5e5e5;
     --text-secondary: #a0a0a0;
     --border-color: #333333;
+    --tag-bg: #1f1f1f;
     --ai-msg-bg: rgba(13, 13, 13, 0.95);
     --surface-elevated: #141414;
     --frosted-light: rgba(8, 8, 8, 0.8);
@@ -166,6 +169,7 @@ body.dark-theme.starlight-theme {
     --text-primary: #D6E4F0;
     --text-secondary: #7A93B0;
     --border-color: #2A4A6E;
+    --tag-bg: #1A2D4A;
     --ai-msg-bg: rgba(15, 27, 48, 0.95);
     --frosted-light: rgba(6, 13, 26, 0.8);
     --frosted-heavy: rgba(6, 13, 26, 0.85);
@@ -9145,7 +9149,9 @@ body.dark-theme .bs-item .provider-icon {
     background-color: rgba(239, 68, 68, 0.1);
 }
 
-/* 两列网格布局 */
+/* ========== 底部弹出菜单 - 网格卡片布局 ========== */
+/* 用于聊天菜单、模型选择、服务商选择等底部弹出面板的网格排列 */
+
 .bs-grid {
     display: grid;
     gap: 6px;
@@ -9161,6 +9167,7 @@ body.landscape-mode .bs-grid-cols-2 {
     grid-template-columns: 1fr 1fr 1fr;
 }
 
+/* 网格卡片项 — 每个选项是一个独立卡片（标签样式） */
 .bs-item.bs-item-grid {
     display: flex;
     flex-direction: column;
@@ -9169,7 +9176,7 @@ body.landscape-mode .bs-grid-cols-2 {
     gap: 4px;
     padding: 14px 8px;
     border-radius: 12px;
-    background-color: var(--border-color);
+    background-color: var(--tag-bg);       /* 卡片背景，与边框色分离 */
     border: 1px solid transparent;
     cursor: pointer;
     font-size: 12px;
@@ -9183,17 +9190,15 @@ body.landscape-mode .bs-grid-cols-2 {
     min-height: 60px;
 }
 
-.bs-item.bs-item-grid:hover {
-    background-color: var(--highlight-bg);
-    border-color: var(--highlight-text);
-}
-
+/* 悬停/选中时高亮 */
+.bs-item.bs-item-grid:hover,
 .bs-item.bs-item-grid.active {
     background-color: var(--highlight-bg);
     color: var(--highlight-text);
     border-color: var(--highlight-text);
 }
 
+/* 卡片内的图标 */
 .bs-item.bs-item-grid .bs-item-icon {
     width: 20px;
     height: 20px;
@@ -9201,6 +9206,7 @@ body.landscape-mode .bs-grid-cols-2 {
     flex-shrink: 0;
 }
 
+/* 卡片内的文字标签 */
 .bs-item.bs-item-grid .bs-item-label {
     font-size: 11px;
     line-height: 1.2;
