@@ -3730,7 +3730,7 @@ async function processToolCalls(messages, aiMessageDiv) {
                     const _isRetryable = /(?:429|[5]\d\d)/.test(String(followupResponse.status));
                     if (!_isRetryable || followupRetryCount >= MAX_FOLLOWUP_RETRIES) {
                         console.error('[ToolCalling] 后续请求失败:', followupResponse.status, errText);
-                        // 400 报错：数据可能已损坏，停止生成让 sendMessage 的 finally 块自动刷新话题
+                        // 400 报错：停止生成，让 sendMessage 的 finally 块自动刷新话题
                         if (followupResponse.status === 400) {
                             if (typeof stopGenerating === 'function') {
                                 try { stopGenerating(); } catch(e) {}

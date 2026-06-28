@@ -13105,9 +13105,10 @@ async function startGeneration(isRefresh = false, targetMessage = null, knowledg
             if (changed) saveAgentTopics();
         }
 
-        // 用户主动停止时刷新当前话题
+        // 用户主动停止时清理孤立的 tool 消息并刷新话题
         if (_wasAborted) {
             try {
+                cascadeDeleteMessages([], 0);
                 await switchAgentAndTopic(currentAgentId, currentTopicId);
             } catch (e2) {
                 console.error('刷新话题失败:', e2);
