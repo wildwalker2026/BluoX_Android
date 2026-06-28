@@ -7522,6 +7522,12 @@ async function switchMessageVersion(messageDiv, direction) {
     if (version.responseId) {
         messageData.responseId = version.responseId;
     }
+    // 同步 tool_calls：版本对象有则用版本的，否则清空
+    if (version.tool_calls) {
+        messageData.tool_calls = version.tool_calls;
+    } else {
+        delete messageData.tool_calls;
+    }
 
     // 保存并刷新整个话题（applyTimelineVisibility 自动处理显隐）
     await saveMessages(messages);
@@ -8634,8 +8640,8 @@ function createAssistantMessage(content, reasoning, responseId, annotations, pre
 }
 
 // 创建版本对象 - 用于刷新/重发时添加新版本
-function createVersion(content, reasoning, responseId, annotations, prevId) {
-    return {
+function createVersion(content, reasoning, responseId, annotations, prevId, tool_calls) {
+    const ver = {
         id: generateMessageId(),
         content: content || '正在思考…',
         reasoning: reasoning,
@@ -8645,12 +8651,14 @@ function createVersion(content, reasoning, responseId, annotations, prevId) {
         annotations: annotations || null,
         prevId: prevId || getTopicRootId()
     };
+    if (tool_calls) ver.tool_calls = tool_calls;
+    return ver;
 }
 
 // 确保消息有 versions 数组 - 用于刷新/重发
 function ensureMessageVersions(message) {
     if (!message.versions) {
-        message.versions = [{
+        const ver = {
             id: message.id,
             content: message.content,
             reasoning: message.reasoning || null,
@@ -8658,7 +8666,9 @@ function ensureMessageVersions(message) {
             modelName: message.modelName,
             responseId: message.responseId,
             prevId: message.prevId || null
-        }];
+        };
+        if (message.tool_calls) ver.tool_calls = message.tool_calls;
+        message.versions = [ver];
     }
     return message;
 }
@@ -12009,8 +12019,8 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
 
     // 处理版本保存
     if (targetMessage && targetMessage.versions) {
-        // 刷新/重发：添加新版本
-        const newVersion = createVersion(aiContent, reasoningContent, currentResponseId, currentAnnotations, resendUserId);
+        // 刷新/重发：添加新版本（携带 tool_calls）
+        const newVersion = createVersion(aiContent, reasoningContent, currentResponseId, currentAnnotations, resendUserId, targetMessage.tool_calls);
 
         targetMessage.versions.push(newVersion);
         console.log('====== 保存新版本 ======');
