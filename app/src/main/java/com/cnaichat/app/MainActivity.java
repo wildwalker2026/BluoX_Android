@@ -399,9 +399,19 @@ public class MainActivity extends Activity {
                 }
                 Log.d("AdSdk", "onPageFinished");
 
-                // 页面重新加载时检查 Termux 服务器状态
-                if (termuxBridge == null) termuxBridge = new TermuxBridge(MainActivity.this);
-                termuxBridge.killServerOnPageReload();
+                // 页面重新加载时检查 Termux 服务器状态（仅专家模式开启时初始化）
+                webView.evaluateJavascript(
+                    "localStorage.getItem('cnai_expert_mode') === '1' ? 'true' : 'false'",
+                    value -> {
+                        // evaluateJavascript 返回的 value 带引号，如 "true"
+                        boolean expertMode = "\"true\"".equals(value) || "true".equals(value);
+                        Log.d("TermuxBridge", "专家模式: " + expertMode + " (raw: " + value + ")");
+                        if (expertMode) {
+                            if (termuxBridge == null) termuxBridge = new TermuxBridge(MainActivity.this);
+                            termuxBridge.killServerOnPageReload();
+                        }
+                    }
+                );
             }
 
             @Override

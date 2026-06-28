@@ -1771,7 +1771,7 @@ body.dark-theme .version-switcher {
 .agent-tags-bar {
     position: relative;
     padding: 4px 0px 8px;
-    margin: 0 0px;
+    margin: 0 0px 4px;
     background-color: transparent;
     overflow: hidden;
     width: calc(100% + 32px);
