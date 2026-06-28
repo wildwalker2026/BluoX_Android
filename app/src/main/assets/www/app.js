@@ -7724,7 +7724,7 @@ function openManageModels() {
                     </button>
                 </div>
             </div>
-            <div class="bs-model-list" id="bsModelsList"></div>
+            <div class="bs-grid bs-grid-cols-2" id="bsModelsGrid" style="padding: 4px 12px 12px;"></div>
         `,
         onClose: () => { manageModelsSheet = null; },
     });
@@ -7733,9 +7733,10 @@ function openManageModels() {
     // 绑定事件
     const bsInput = document.getElementById('bsNewModelInput');
     const bsAddBtn = document.getElementById('bsAddModelBtn');
-    const bsList = document.getElementById('bsModelsList');
+    const bsGrid = document.getElementById('bsModelsGrid');
 
     function renderBsModelsList(searchKeyword = '') {
+        bsGrid.innerHTML = '';
         let models = [];
         if (currentAIProvider.startsWith('custom_')) {
             const customProvider = customProviders.find(p => p.id === currentAIProvider);
@@ -7743,7 +7744,6 @@ function openManageModels() {
         } else {
             models = cachedModels[currentAIProvider] || [];
         }
-        bsList.innerHTML = '';
         const filteredModels = searchKeyword
             ? models.filter(model =>
                 model.name.toLowerCase().includes(searchKeyword.toLowerCase()) ||
@@ -7751,7 +7751,7 @@ function openManageModels() {
             )
             : models;
         if (filteredModels.length === 0) {
-            bsList.innerHTML = searchKeyword
+            bsGrid.innerHTML = searchKeyword
                 ? '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">未找到匹配的模型</div>'
                 : '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">暂无自定义模型</div>';
             return;
@@ -7759,18 +7759,15 @@ function openManageModels() {
         filteredModels.forEach(model => {
             const item = document.createElement('button');
             item.type = 'button';
-            item.className = 'bs-item';
+            item.className = 'bs-item bs-item-grid';
+            item.style.position = 'relative';
             if (model.id === selectedModel) item.classList.add('active');
             const isVision = VISION_MODEL_IDS.includes(model.id);
-            const visionTag = isVision ? ' <small style="color:var(--text-secondary)">视觉</small>' : '';
+            const visionTag = isVision ? '<small style="font-size:10px;color:var(--text-secondary);margin-top:2px;">视觉</small>' : '';
             item.innerHTML = `
-                <span>${model.name}${visionTag}</span>
-                <button class="model-item-delete" title="删除">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                </button>
+                <span class="bs-item-label">${model.name}</span>
+                ${visionTag}
+                <button class="model-item-delete" title="删除记录" style="position:absolute;top:2px;right:2px;width:22px;height:22px;border:none;background:rgba(0,0,0,0.1);border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);opacity:0.6;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
             `;
             item.addEventListener('click', (e) => {
                 if (e.target.closest('.model-item-delete')) return;
@@ -7779,9 +7776,9 @@ function openManageModels() {
             });
             item.querySelector('.model-item-delete').addEventListener('click', (e) => {
                 e.stopPropagation();
-                deleteModelBs(model.id, bsInput.value.trim(), bsList, renderBsModelsList);
+                deleteModelBs(model.id, bsInput.value.trim(), bsGrid, renderBsModelsList);
             });
-            bsList.appendChild(item);
+            bsGrid.appendChild(item);
         });
     }
 
@@ -8157,19 +8154,32 @@ function setupCustomSelects() {
         const items = [...AI_PROVIDERS.map(p => ({
             value: p.value,
             label: p.label,
-            icon: `<img src="${p.icon}" alt="${p.label}" class="provider-icon" style="width:18px;height:18px;margin-right:8px;flex-shrink:0;">`,
+            icon: `<img src="${p.icon}" alt="${p.label}" class="provider-icon" style="width:20px;height:20px;">`,
         }))];
-        // 自定义服务商
+        // 自定义服务商（网格模式忽略 divider，单独放底部）
+        let customItemsHtml = '';
         if (customProviders.length > 0) {
-            items.push('divider');
-            customProviders.forEach(p => items.push({ value: p.id, label: p.name }));
+            customProviders.forEach(p => {
+                customItemsHtml += `<button type="button" class="bs-item bs-item-grid custom-provider-grid-item" data-value="${p.id}" style="position:relative;">
+                    <span class="bs-item-label">${p.name}</span>
+                    <small style="font-size:10px;color:var(--text-secondary);">自定义</small>
+                </button>`;
+            });
         }
-        items.push('divider');
-        items.push({ value: '__manage_custom__', label: '自定义服务商...' });
 
         createBottomSheetPicker({
             items,
             activeValue: aiProviderSelect.value,
+            gridColumns: 2,
+            customContent: (customItemsHtml || items.length > 0) ? `
+                ${customItemsHtml ? `<div class="bs-grid bs-grid-cols-2" style="padding: 0 12px 8px;">${customItemsHtml}</div>` : ''}
+                <div style="padding: 0 16px 12px;">
+                    <button type="button" class="bs-item" id="bsManageCustomProviderBtn" style="justify-content:center;color:var(--primary-color);font-weight:500;border:1px dashed var(--border-color);border-radius:10px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        自定义服务商...
+                    </button>
+                </div>
+            ` : '',
             onSelect: (item) => {
                 if (item.value === '__manage_custom__') {
                     openCustomProviderModal();
@@ -8184,6 +8194,27 @@ function setupCustomSelects() {
                 aiProviderSelect.dispatchEvent(new Event('change'));
             },
         }).show();
+
+        // 绑定自定义服务商网格项点击事件
+        setTimeout(() => {
+            document.querySelectorAll('.custom-provider-grid-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    const val = el.dataset.value;
+                    aiProviderSelectText.textContent = el.querySelector('.bs-item-label').textContent;
+                    aiProviderSelect.value = val;
+                    aiProviderSelect.dispatchEvent(new Event('change'));
+                });
+            });
+            const manageBtn = document.getElementById('bsManageCustomProviderBtn');
+            if (manageBtn) {
+                manageBtn.addEventListener('click', () => {
+                    // 关闭当前 sheet
+                    const sheets = document.querySelectorAll('.bs-overlay.active');
+                    sheets.forEach(s => s.click());
+                    setTimeout(() => openCustomProviderModal(), 350);
+                });
+            }
+        }, 0);
     });
 
     // 模型选择器 - 使用通用底部弹出选择器
