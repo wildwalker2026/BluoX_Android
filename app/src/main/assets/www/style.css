@@ -165,7 +165,7 @@ body.dark-theme.starlight-theme {
     --surface-elevated: #0E1A2E;
     --text-primary: #D6E4F0;
     --text-secondary: #7A93B0;
-    --border-color: #162A45;
+    --border-color: #2A4A6E;
     --ai-msg-bg: rgba(15, 27, 48, 0.95);
     --frosted-light: rgba(6, 13, 26, 0.8);
     --frosted-heavy: rgba(6, 13, 26, 0.85);
@@ -6287,9 +6287,10 @@ body.dark-theme .topic-drawer-topic-item :hover[a-non-existent-attr] {
     background-color: var(--bg-color);
 }
 
-body.dark-theme .topic-drawer-topic-item.active {
+/* 已由 .topic-drawer-topic-item.active::before 伪元素提供圆角高亮背景，此处不再重复设置 */
+/* body.dark-theme .topic-drawer-topic-item.active {
     background-color: var(--highlight-bg);
-}
+} */
 
 .hover-disabled :hover[a-non-existent-attr] svg {
     fill: none !important;
