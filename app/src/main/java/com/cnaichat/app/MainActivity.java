@@ -399,8 +399,9 @@ public class MainActivity extends Activity {
                 }
                 Log.d("AdSdk", "onPageFinished");
 
-                // 页面重新加载时杀掉旧服务器进程，等5秒后自动重启
-                if (termuxBridge != null) termuxBridge.killServerOnPageReload();
+                // 页面重新加载时检查 Termux 服务器状态
+                if (termuxBridge == null) termuxBridge = new TermuxBridge(MainActivity.this);
+                termuxBridge.killServerOnPageReload();
             }
 
             @Override

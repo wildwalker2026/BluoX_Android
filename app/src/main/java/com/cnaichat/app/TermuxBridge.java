@@ -68,7 +68,7 @@ public class TermuxBridge {
     private static volatile Boolean serverAvailable = null;
     private static volatile long lastPingTime = 0;
     private static final long PING_CACHE_MS = 5000; // 5 秒内不重复 ping
-    private volatile boolean initializing = false; // 服务器初始化中
+    private static volatile boolean initializing = false; // 服务器初始化中
 
     // 已取消的异步命令 callbackId 集合
     private static final ConcurrentHashMap<String, Boolean> cancelledCallbacks = new ConcurrentHashMap<>();
@@ -295,26 +295,11 @@ public class TermuxBridge {
                     result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
                 }
             } else {
-                // 服务器不可用，尝试启动
-                tryStartServer();
-                if (isServerAvailable()) {
-                    startHttpProgressPoller(callbackId, webView, activity, timeoutSecs, progressFile);
-                    result = executeViaHttp(command, workDir, timeoutSecs, progressFile, callbackId);
-                    stopHttpProgressPoller(callbackId);
-                    cleanupProgressFile(progressFile);
-                    if (result == null) {
-                        new Handler(Looper.getMainLooper()).post(() -> {
-                            android.widget.Toast.makeText(context, "连接错误，使用直连方案", android.widget.Toast.LENGTH_SHORT).show();
-                        });
-                        result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
-                    }
-                } else {
-                    // 服务器启动失败，降级到文件轮询通道
-                    new Handler(Looper.getMainLooper()).post(() -> {
-                        android.widget.Toast.makeText(context, "检查termux是否在后台开启", android.widget.Toast.LENGTH_LONG).show();
-                    });
-                    result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
-                }
+                // 服务器不可用，直接走文件轮询通道
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    android.widget.Toast.makeText(context, "检查termux是否在后台开启", android.widget.Toast.LENGTH_LONG).show();
+                });
+                result = executeViaFile(command, workDir, timeoutSecs, callbackId, webView, activity);
             }
             activeCallbacks.remove(callbackId);
             callbackContexts.remove(callbackId);
@@ -488,24 +473,6 @@ public class TermuxBridge {
         }
     }
 
-    /**
-     * 清理所有进度文件（仅页面刷新时用）
-     */
-    private void cleanupProgressFiles() {
-        try {
-            File dir = new File(PROGRESS_DIR);
-            if (!dir.exists()) return;
-            File[] files = dir.listFiles((d, name) ->
-                    name.startsWith(PROGRESS_PREFIX) && name.endsWith(".txt"));
-            if (files == null) return;
-            for (File f : files) {
-                f.delete();
-            }
-            Log.d(TAG, "已清理进度文件: " + files.length + " 个");
-        } catch (Exception e) {
-            Log.w(TAG, "清理进度文件失败: " + e.getMessage());
-        }
-    }
 
     /**
      * 页面重新加载时检查服务器状态：
@@ -515,21 +482,34 @@ public class TermuxBridge {
     public void killServerOnPageReload() {
         new Thread(() -> {
             try {
-                // 1. 先 ping 检查服务器是否存活
-                boolean alive = pingServer();
+                // 1. 连续 4 秒 ping 检查服务器是否真正存活
+                new Handler(Looper.getMainLooper()).post(() ->
+                    android.widget.Toast.makeText(context, "正在桥接Termux", android.widget.Toast.LENGTH_LONG).show());
+                boolean alive = false;
+                long pingDeadline = System.currentTimeMillis() + 4000;
+                while (System.currentTimeMillis() < pingDeadline) {
+                    if (!pingServer()) {
+                        alive = false;
+                        break;
+                    }
+                    alive = true;
+                    try { Thread.sleep(500); } catch (InterruptedException e) { break; }
+                }
                 if (alive) {
                     // 服务器活着，直接复用
                     serverAvailable = true;
                     lastPingTime = System.currentTimeMillis();
                     Log.d(TAG, "onPageFinished: 服务器存活，跳过重启");
-                    android.widget.Toast.makeText(context, "termux就绪", android.widget.Toast.LENGTH_SHORT).show();
+                    new Handler(Looper.getMainLooper()).post(() ->
+                        android.widget.Toast.makeText(context, "termux就绪", android.widget.Toast.LENGTH_SHORT).show());
                     return;
                 }
 
                 // 2. ping 不通，需要重启
                 initializing = true;
                 serverAvailable = null;
-                android.widget.Toast.makeText(context, "termux初始化中", android.widget.Toast.LENGTH_SHORT).show();
+                new Handler(Looper.getMainLooper()).post(() ->
+                    android.widget.Toast.makeText(context, "termux初始化中", android.widget.Toast.LENGTH_SHORT).show());
 
                 // 杀旧进程
                 String killScript = "/sdcard/.termux_kill_server.sh";
@@ -551,8 +531,18 @@ public class TermuxBridge {
                 Thread.sleep(5000);
                 // 启动新服务器
                 tryStartServer();
+                // 等待服务器启动（最多 2 秒）
+                boolean started = false;
+                for (int i = 0; i < 4; i++) {
+                    try { Thread.sleep(500); } catch (InterruptedException e) { break; }
+                    if (pingServer()) { started = true; break; }
+                }
+                serverAvailable = started;
+                lastPingTime = System.currentTimeMillis();
                 initializing = false;
-                Log.d(TAG, "onPageFinished 服务器已自动重启");
+                final boolean finalStarted = started;
+                new Handler(Looper.getMainLooper()).post(() ->
+                    android.widget.Toast.makeText(context, finalStarted ? "termux就绪" : "termux初始化失败，检查是否在后台开启", android.widget.Toast.LENGTH_LONG).show());
             } catch (Exception e) {
                 initializing = false;
                 Log.w(TAG, "onPageFinished 重启失败: " + e.getMessage());
@@ -601,9 +591,6 @@ public class TermuxBridge {
      * 尝试启动 HTTP 服务器
      */
     public void tryStartServer() {
-        // 先杀掉旧的服务器进程（通过 pid 文件）
-        killOldServer();
-
         // 从 assets 释放服务器脚本（每次都覆盖，确保最新版本）
         File scriptFile = new File(SERVER_SCRIPT);
         scriptFile.getParentFile().mkdirs();
@@ -648,52 +635,7 @@ public class TermuxBridge {
             Log.e(TAG, "启动服务器失败: " + e.getMessage());
             return;
         }
-        // 等待启动（最多 8 秒）
-        for (int i = 0; i < 16; i++) {
-            try { Thread.sleep(500); } catch (InterruptedException e) { break; }
-            if (pingServer()) {
-                serverAvailable = true;
-                Log.i(TAG, "HTTP 命令服务器已启动");
-                // 在主线程显示 Toast
-                return;
-            }
-        }
-        Log.w(TAG, "HTTP 命令服务器启动超时");
-        serverAvailable = false;
-    }
-
-    /**
-     * 杀掉旧的服务器进程（通过 Termux 执行 pkill）
-     */
-    private void killOldServer() {
-        // 写 kill 脚本
-        String killScript = "/sdcard/.termux_kill_server.sh";
-        try {
-            FileWriter fw = new FileWriter(killScript);
-            fw.write("pkill -f termux_server.py 2>/dev/null\n");
-            fw.close();
-        } catch (Exception e) {
-            Log.w(TAG, "写入 kill 脚本失败: " + e.getMessage());
-        }
-
-        // 通过 am startservice 在 Termux 中执行 kill
-        String amCmd = "am startservice --user 0" +
-                " -n " + TERMUX_PACKAGE + "/" + TERMUX_RUN_COMMAND_SERVICE +
-                " -a " + ACTION_RUN_COMMAND +
-                " --es " + EXTRA_COMMAND_PATH + " " + TERMUX_PREFIX + "/bin/bash" +
-                " --esa " + EXTRA_ARGUMENTS + " " + killScript +
-                " --es " + EXTRA_WORKDIR + " " + TERMUX_HOME +
-                " --ez " + EXTRA_BACKGROUND + " true";
-        try {
-            ProcessBuilder pb = new ProcessBuilder("/system/bin/sh", "-c",
-                    amCmd + " > /dev/null 2>&1 &");
-            pb.start();
-        } catch (Exception e) {
-            Log.w(TAG, "发送 kill 命令失败: " + e.getMessage());
-        }
-        // 等待 kill 执行
-        try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-        serverAvailable = null;
+        Log.i(TAG, "HTTP 命令服务器启动命令已发送");
     }
 
     /**

@@ -201,6 +201,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, graceful_shutdown)
     signal.signal(signal.SIGINT, graceful_shutdown)
 
+    http.server.ThreadingHTTPServer.allow_reuse_address = True
     server = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), CommandHandler)
     server.daemon_threads = True
 
