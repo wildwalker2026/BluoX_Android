@@ -12,10 +12,15 @@ import os
 import time
 import signal
 import socket
+import threading
 
 PORT = 8765
 MAX_OUTPUT = 200000
 DEFAULT_TIMEOUT = 120
+
+# 运行中的命令追踪：{ cmd_id: process }
+RUNNING_COMMANDS = {}
+RUNNING_LOCK = threading.Lock()
 
 def io_sleep(seconds):
     """用 socketpair recv 超时代替 time.sleep，利用内核 IO 唤醒避免后台冻结"""
@@ -53,7 +58,7 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
                 'status': 'ok',
                 'pid': os.getpid(),
                 'uptime': int(time.time() - START_TIME),
-                'active_commands': 0
+                'active_commands': len(RUNNING_COMMANDS)
             })
         else:
             self._send_json(404, {'error': 'not found'})
@@ -61,6 +66,8 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/exec':
             self._handle_exec()
+        elif self.path == '/cancel':
+            self._handle_cancel()
         else:
             self._send_json(404, {'error': 'not found'})
 
@@ -74,6 +81,7 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
         cmd = body
         timeout = DEFAULT_TIMEOUT
         workdir = None
+        cmd_id = None
 
         try:
             req = json.loads(body)
@@ -81,6 +89,7 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
             timeout = req.get('timeout', DEFAULT_TIMEOUT)
             workdir = req.get('workdir')
             output_file = req.get('output_file')
+            cmd_id = req.get('cmd_id')
         except (json.JSONDecodeError, TypeError):
             pass
 
@@ -106,6 +115,11 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
                 env=env,
                 preexec_fn=os.setsid
             )
+
+            # 注册到运行中命令追踪，供 /cancel 端点使用
+            if cmd_id:
+                with RUNNING_LOCK:
+                    RUNNING_COMMANDS[cmd_id] = proc
 
             # 用 IO 轮询等待子进程完成，避免后台被冻结
             deadline = time.time() + timeout
@@ -143,6 +157,38 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
 
         except Exception as e:
             self._send_json(500, {'error': str(e)})
+        finally:
+            if cmd_id:
+                with RUNNING_LOCK:
+                    RUNNING_COMMANDS.pop(cmd_id, None)
+
+    def _handle_cancel(self):
+        """取消指定命令的子进程"""
+        body = self._read_body()
+        try:
+            req = json.loads(body)
+            cmd_id = req.get('cmd_id')
+        except (json.JSONDecodeError, TypeError):
+            self._send_json(400, {'error': 'invalid request'})
+            return
+
+        if not cmd_id:
+            self._send_json(400, {'error': 'missing cmd_id'})
+            return
+
+        with RUNNING_LOCK:
+            proc = RUNNING_COMMANDS.get(cmd_id)
+
+        if proc and proc.poll() is None:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                self._send_json(200, {'cancelled': True})
+            except ProcessLookupError:
+                self._send_json(200, {'cancelled': False, 'reason': 'already finished'})
+            except Exception as e:
+                self._send_json(500, {'error': str(e)})
+        else:
+            self._send_json(200, {'cancelled': False, 'reason': 'not running'})
 
 
 def graceful_shutdown(signum, frame):

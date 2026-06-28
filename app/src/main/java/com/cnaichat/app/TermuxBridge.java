@@ -76,6 +76,13 @@ public class TermuxBridge {
     // 活跃的异步命令 callbackId 集合
     private static final ConcurrentHashMap<String, Boolean> activeCallbacks = new ConcurrentHashMap<>();
 
+    // 活跃命令的 WebView 和 Activity 引用，供取消时立即回调 JS
+    private static final ConcurrentHashMap<String, Object[]> callbackContexts = new ConcurrentHashMap<>();
+
+    // 活跃命令的回调锁和已回调标记，防止 cancel 和 execute 线程重复回调
+    private static final ConcurrentHashMap<String, Object> callbackLocks = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, boolean[]> callbackCalledFlags = new ConcurrentHashMap<>();
+
     private final Context context;
 
     public TermuxBridge(Context context) {
@@ -228,10 +235,13 @@ public class TermuxBridge {
 
     private void executeAsyncInternal(String command, String workDir, String callbackId,
                                       WebView webView, Activity activity, int timeoutSecs) {
-        final boolean[] callbackCalled = {false};
         final Object callbackLock = new Object();
+        final boolean[] callbackCalled = {false};
         cancelledCallbacks.remove(callbackId);
         activeCallbacks.put(callbackId, true);
+        callbackContexts.put(callbackId, new Object[]{webView, activity});
+        callbackLocks.put(callbackId, callbackLock);
+        callbackCalledFlags.put(callbackId, callbackCalled);
 
         // 超时保护：额外预留 15 秒给服务器启动 + ping 开销
         final int effectiveTimeout = timeoutSecs + 15;
@@ -241,6 +251,10 @@ public class TermuxBridge {
                 callbackCalled[0] = true;
             }
             activeCallbacks.remove(callbackId);
+            callbackContexts.remove(callbackId);
+            callbackLocks.remove(callbackId);
+            callbackCalledFlags.remove(callbackId);
+            cancelledCallbacks.remove(callbackId);
             Log.w(TAG, "异步命令超时: " + callbackId + " (" + effectiveTimeout + "s)");
             callbackJs(webView, activity, callbackId,
                     "{\"error\":\"命令执行超时（" + timeoutSecs + "秒）\"}");
@@ -250,10 +264,14 @@ public class TermuxBridge {
             // 如果服务器正在初始化，直接返回提示
             if (initializing) {
                 activeCallbacks.remove(callbackId);
+                callbackContexts.remove(callbackId);
+                cancelledCallbacks.remove(callbackId);
                 synchronized (callbackLock) {
                     if (callbackCalled[0]) return;
                     callbackCalled[0] = true;
                 }
+                callbackLocks.remove(callbackId);
+                callbackCalledFlags.remove(callbackId);
                 callbackJs(webView, activity, callbackId,
                         "{\"error\":\"⏳ 服务器初始化中，请稍后重试\"}");
                 return;
@@ -266,7 +284,7 @@ public class TermuxBridge {
             // 优先走 HTTP 通道（不受后台冻结影响）
             if (isServerAvailable()) {
                 startHttpProgressPoller(callbackId, webView, activity, timeoutSecs, progressFile);
-                result = executeViaHttp(command, workDir, timeoutSecs, progressFile);
+                result = executeViaHttp(command, workDir, timeoutSecs, progressFile, callbackId);
                 stopHttpProgressPoller(callbackId);
                 cleanupProgressFile(progressFile);
                 if (result == null) {
@@ -281,7 +299,7 @@ public class TermuxBridge {
                 tryStartServer();
                 if (isServerAvailable()) {
                     startHttpProgressPoller(callbackId, webView, activity, timeoutSecs, progressFile);
-                    result = executeViaHttp(command, workDir, timeoutSecs, progressFile);
+                    result = executeViaHttp(command, workDir, timeoutSecs, progressFile, callbackId);
                     stopHttpProgressPoller(callbackId);
                     cleanupProgressFile(progressFile);
                     if (result == null) {
@@ -299,10 +317,14 @@ public class TermuxBridge {
                 }
             }
             activeCallbacks.remove(callbackId);
+            callbackContexts.remove(callbackId);
+            cancelledCallbacks.remove(callbackId);
             synchronized (callbackLock) {
                 if (callbackCalled[0]) return;
                 callbackCalled[0] = true;
             }
+            callbackLocks.remove(callbackId);
+            callbackCalledFlags.remove(callbackId);
             callbackJs(webView, activity, callbackId, result);
         }, "TermuxAsync-" + callbackId).start();
     }
@@ -310,13 +332,77 @@ public class TermuxBridge {
     public void cancelAsyncCommand(String callbackId) {
         if (callbackId != null) {
             cancelledCallbacks.put(callbackId, true);
+            cancelCommandViaHttp(callbackId);
+            // 立即回调 JS，不等 HTTP 响应
+            Object[] ctx = callbackContexts.remove(callbackId);
+            Object lock = callbackLocks.remove(callbackId);
+            boolean[] called = callbackCalledFlags.remove(callbackId);
+            if (ctx != null && lock != null && called != null) {
+                synchronized (lock) {
+                    if (called[0]) return;
+                    called[0] = true;
+                }
+                activeCallbacks.remove(callbackId);
+                // 注意：不 remove cancelledCallbacks，留给 execute 线程检测后自行清理
+                WebView wv = (WebView) ctx[0];
+                Activity act = (Activity) ctx[1];
+                callbackJs(wv, act, callbackId, "{\"cancelled\":true}");
+            }
         }
+    }
+
+    /**
+     * 通过 HTTP 通知 Python 服务器杀掉指定命令的子进程
+     */
+    private void cancelCommandViaHttp(String cmdId) {
+        // 服务器不可用时跳过，避免无意义的网络请求
+        if (serverAvailable == null || !serverAvailable) return;
+        new Thread(() -> {
+            try {
+                JSONObject req = new JSONObject();
+                req.put("cmd_id", cmdId);
+                byte[] body = req.toString().getBytes("UTF-8");
+
+                HttpURLConnection conn = (HttpURLConnection) new URL(SERVER_URL + "/cancel").openConnection();
+                conn.setRequestProperty("Connection", "close");
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                conn.setConnectTimeout(2000);
+                conn.setReadTimeout(2000);
+                conn.setDoOutput(true);
+                OutputStream os = conn.getOutputStream();
+                os.write(body);
+                os.flush();
+                os.close();
+                conn.getResponseCode();
+                conn.disconnect();
+                Log.d(TAG, "HTTP cancel 已发送: " + cmdId);
+            } catch (Exception e) {
+                Log.w(TAG, "HTTP cancel 失败: " + e.getMessage());
+            }
+        }).start();
     }
 
     public void cancelAllAsyncCommands() {
         Log.i(TAG, "取消所有 Termux 异步命令: " + activeCallbacks.size() + " 个");
         for (String cbId : activeCallbacks.keySet()) {
             cancelledCallbacks.put(cbId, true);
+            cancelCommandViaHttp(cbId);
+            // 立即回调 JS
+            Object[] ctx = callbackContexts.remove(cbId);
+            Object lock = callbackLocks.remove(cbId);
+            boolean[] called = callbackCalledFlags.remove(cbId);
+            if (ctx != null && lock != null && called != null) {
+                synchronized (lock) {
+                    if (called[0]) continue;
+                    called[0] = true;
+                }
+                activeCallbacks.remove(cbId);
+                // 注意：不 remove cancelledCallbacks，留给 execute 线程检测后自行清理
+                WebView wv = (WebView) ctx[0];
+                Activity act = (Activity) ctx[1];
+                callbackJs(wv, act, cbId, "{\"cancelled\":true}");
+            }
         }
     }
 
@@ -614,7 +700,7 @@ public class TermuxBridge {
      * 通过 HTTP 通道执行命令
      * @return JSON 结果字符串，null 表示失败（应回退到文件轮询）
      */
-    private String executeViaHttp(String command, String workDir, int timeoutSec, String progressFile) {
+    private String executeViaHttp(String command, String workDir, int timeoutSec, String progressFile, String cmdId) {
         HttpURLConnection conn = null;
         try {
             JSONObject req = new JSONObject();
@@ -622,6 +708,7 @@ public class TermuxBridge {
             req.put("timeout", timeoutSec);
             if (workDir != null) req.put("workdir", workDir);
             if (progressFile != null) req.put("output_file", progressFile);
+            if (cmdId != null) req.put("cmd_id", cmdId);
             byte[] body = req.toString().getBytes("UTF-8");
 
             conn = (HttpURLConnection) new URL(SERVER_URL + "/exec").openConnection();
