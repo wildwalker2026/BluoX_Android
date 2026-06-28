@@ -5419,7 +5419,7 @@ async function deleteAgent() {
  * @param {string} [options.activeValue] - 当前选中值（高亮显示）
  * @returns {{ show, hide, destroy }}
  */
-function createBottomSheetPicker({ items = [], title, onSelect, activeValue, customContent } = {}) {
+function createBottomSheetPicker({ items = [], title, onSelect, activeValue, customContent, gridColumns = 0 } = {}) {
     // 创建遮罩
     const overlay = document.createElement('div');
     overlay.className = 'bs-overlay';
@@ -5443,28 +5443,55 @@ function createBottomSheetPicker({ items = [], title, onSelect, activeValue, cus
     }
 
     // 选项
-    items.forEach(item => {
-        if (item === 'divider') {
-            const divider = document.createElement('div');
-            divider.className = 'bs-divider';
-            panel.appendChild(divider);
-            return;
-        }
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'bs-item' + (item.className ? ' ' + item.className : '');
-        if (item.value === activeValue) btn.classList.add('active');
-        let html = '';
-        if (item.icon) html += `<span class="bs-item-icon">${item.icon}</span>`;
-        html += `<span>${item.label}</span>`;
-        btn.innerHTML = html;
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            hide();
-            if (onSelect) onSelect(item);
+    if (gridColumns > 1) {
+        // 网格布局：将 items 分组为 gridColumns 列
+        const grid = document.createElement('div');
+        grid.className = 'bs-grid bs-grid-cols-' + gridColumns;
+        items.forEach(item => {
+            if (item === 'divider') {
+                // 网格中忽略分隔线
+                return;
+            }
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'bs-item bs-item-grid' + (item.className ? ' ' + item.className : '');
+            if (item.value === activeValue) btn.classList.add('active');
+            let html = '';
+            if (item.icon) html += `<span class="bs-item-icon">${item.icon}</span>`;
+            html += `<span class="bs-item-label">${item.label}</span>`;
+            btn.innerHTML = html;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                hide();
+                if (onSelect) onSelect(item);
+            });
+            grid.appendChild(btn);
         });
-        panel.appendChild(btn);
-    });
+        panel.appendChild(grid);
+    } else {
+        items.forEach(item => {
+            if (item === 'divider') {
+                const divider = document.createElement('div');
+                divider.className = 'bs-divider';
+                panel.appendChild(divider);
+                return;
+            }
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'bs-item' + (item.className ? ' ' + item.className : '');
+            if (item.value === activeValue) btn.classList.add('active');
+            let html = '';
+            if (item.icon) html += `<span class="bs-item-icon">${item.icon}</span>`;
+            html += `<span>${item.label}</span>`;
+            btn.innerHTML = html;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                hide();
+                if (onSelect) onSelect(item);
+            });
+            panel.appendChild(btn);
+        });
+    }
 
     // 自定义内容
     if (customContent) {
@@ -15458,6 +15485,7 @@ function showChatMenuSheet() {
     chatMenuSheet = createBottomSheetPicker({
         items,
         activeValue: null,
+        gridColumns: 2,
         onSelect: (item) => {
             const val = item.value;
             if (val && val.startsWith('model::')) {
