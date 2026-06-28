@@ -111,7 +111,7 @@ body .message-content {
     --primary-border: var(--primary-color);
     --text-primary: #1f1f1f;
     --text-secondary: #6b7280;
-    --border-color: #e5e7eb;
+    --border-color: #d1d5db;
     --deep-thinking-on: #10b981;
     --deep-thinking-off: #9ca3af;
     --ai-msg-bg: rgba(255, 255, 255, 0.95);
@@ -5969,8 +5969,22 @@ body.landscape-mode .topic-drawer-info {
 }
 
 .topic-drawer-topic-item.active {
-    background-color: var(--highlight-bg);
     color: var(--highlight-text);
+    position: relative;
+    margin-right: 16px;
+}
+
+.topic-drawer-topic-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 32px;
+    right: 0;
+    bottom: 0;
+    background-color: var(--highlight-bg);
+    border-radius: 10px;
+    pointer-events: none;
+    z-index: -1;
 }
 
 .topic-drawer-topic-name {
