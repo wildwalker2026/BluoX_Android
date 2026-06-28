@@ -17991,7 +17991,9 @@ function renderSearchResults(results, keyword) {
 
     // 分组：话题名称全部显示，消息内容限制50条
     const topicResults = results.filter(r => r.role === 'topic_name');
-    const msgResults = results.filter(r => r.role !== 'topic_name').slice(0, 50);
+    const msgResults = results.filter(r => r.role !== 'topic_name')
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+        .slice(0, 50);
 
     // 渲染话题名称结果
     topicResults.forEach(result => {
