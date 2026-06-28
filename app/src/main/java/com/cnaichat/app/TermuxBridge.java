@@ -531,11 +531,27 @@ public class TermuxBridge {
                 Thread.sleep(5000);
                 // 启动新服务器
                 tryStartServer();
-                // 等待服务器启动（最多 2 秒）
+                // 先等5秒让服务器启动
+                Thread.sleep(5000);
+                // 等待服务器启动（每轮 6 秒 ping 12 次，有一次失败就算失败，失败后等2秒重试，最多3轮）
                 boolean started = false;
-                for (int i = 0; i < 4; i++) {
-                    try { Thread.sleep(500); } catch (InterruptedException e) { break; }
-                    if (pingServer()) { started = true; break; }
+                for (int round = 0; round < 3; round++) {
+                    if (round > 0) {
+                        Thread.sleep(2000);
+                        final int r = round + 1;
+                        new Handler(Looper.getMainLooper()).post(() ->
+                            android.widget.Toast.makeText(context, "termux重试第 " + r + " 轮", android.widget.Toast.LENGTH_SHORT).show());
+                        Log.d(TAG, "第 " + (round + 1) + " 轮重试...");
+                    }
+                    boolean roundOk = true;
+                    for (int i = 0; i < 12; i++) {
+                        try { Thread.sleep(500); } catch (InterruptedException e) { break; }
+                        if (!pingServer()) { roundOk = false; break; }
+                    }
+                    if (roundOk) {
+                        started = true;
+                        break;
+                    }
                 }
                 serverAvailable = started;
                 lastPingTime = System.currentTimeMillis();
@@ -580,9 +596,10 @@ public class TermuxBridge {
             conn.setRequestMethod("GET");
             int code = conn.getResponseCode();
             conn.disconnect();
+            Log.d(TAG, "ping 结果: " + code);
             return code == 200;
         } catch (Exception e) {
-            Log.e(TAG, "pingServer 失败: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            Log.e(TAG, "ping 失败: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             return false;
         }
     }

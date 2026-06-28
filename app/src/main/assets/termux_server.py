@@ -195,11 +195,36 @@ def graceful_shutdown(signum, frame):
     os._exit(0)
 
 
+def acquire_wake_lock():
+    """持有 termux-wake-lock，防止进程被系统冻结"""
+    try:
+        subprocess.run(
+            ['/data/data/com.termux/files/usr/bin/termux-wake-lock', 'bluox-server'],
+            timeout=5, capture_output=True
+        )
+    except Exception:
+        pass  # termux-api 未安装时静默忽略
+
+
+def release_wake_lock():
+    """释放 wake lock"""
+    try:
+        subprocess.run(
+            ['/data/data/com.termux/files/usr/bin/termux-wake-lock', 'release', 'bluox-server'],
+            timeout=5, capture_output=True
+        )
+    except Exception:
+        pass
+
+
 START_TIME = time.time()
 
 if __name__ == '__main__':
     signal.signal(signal.SIGTERM, graceful_shutdown)
     signal.signal(signal.SIGINT, graceful_shutdown)
+
+    # 持锁防冻结
+    acquire_wake_lock()
 
     http.server.ThreadingHTTPServer.allow_reuse_address = True
     server = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), CommandHandler)
@@ -212,3 +237,5 @@ if __name__ == '__main__':
         server.serve_forever()
     except KeyboardInterrupt:
         graceful_shutdown(None, None)
+    finally:
+        release_wake_lock()
