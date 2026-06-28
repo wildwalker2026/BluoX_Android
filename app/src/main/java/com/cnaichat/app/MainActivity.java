@@ -150,7 +150,7 @@ public class MainActivity extends Activity {
     private TermuxBridge termuxBridge;
 
     // APK 打包时的 Web 版本号（与 config.xml 保持一致）
-    private static final String ASSETS_WEB_VERSION = "1.3.10";
+    private static final String ASSETS_WEB_VERSION = "1.3.11";
 
     // 广告 SDK 相关
     private static final String CSJ_SPLASH_AD_CODE_ID = "103980017"; // 穿山甲开屏广告代码位ID
