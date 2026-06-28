@@ -5015,7 +5015,7 @@ function toggleAgentTopics(agentId) {
     // 新建话题按钮（放最上面）
     contentHtml += `
         <div style="padding:8px 16px 4px;">
-            <button class="new-topic-in-panel-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;border:1px dashed var(--border-color);border-radius:10px;background:none;cursor:pointer;font-size:14px;color:var(--text-primary);transition:background-color 0.2s;">
+            <button class="new-topic-in-panel-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;border:1px solid var(--text-secondary);border-radius:10px;background:none;cursor:pointer;font-size:14px;color:var(--text-primary);transition:background-color 0.2s;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -8176,7 +8176,7 @@ function setupCustomSelects() {
             customContent: (customItemsHtml || items.length > 0) ? `
                 ${customItemsHtml ? `<div class="bs-grid bs-grid-cols-2" style="padding: 0 12px 8px;">${customItemsHtml}</div>` : ''}
                 <div style="padding: 0 16px 12px;">
-                    <button type="button" class="bs-item" id="bsManageCustomProviderBtn" style="justify-content:center;color:var(--primary-color);font-weight:500;border:1px dashed var(--border-color);border-radius:10px;">
+                    <button type="button" class="bs-item" id="bsManageCustomProviderBtn" style="justify-content:center;color:var(--primary-color);font-weight:500;border:1px solid var(--text-secondary);border-radius:10px;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                         自定义服务商...
                     </button>
@@ -11204,7 +11204,7 @@ function openCustomProviderModal() {
         content: `
             <div class="bs-grid bs-grid-cols-2" id="bsCustomProviderGrid" style="padding: 4px 12px 8px;"></div>
             <div style="padding: 0 16px 12px;">
-                <button type="button" class="bs-item" id="bsAddCustomProviderBtn" style="justify-content:center;color:var(--primary-color);font-weight:500;border:1px dashed var(--border-color);border-radius:10px;">
+                <button type="button" class="bs-item" id="bsAddCustomProviderBtn" style="justify-content:center;color:var(--primary-color);font-weight:500;border:1px solid var(--text-secondary);border-radius:10px;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     添加新服务商
                 </button>
