@@ -361,9 +361,9 @@ public class TermuxBridge {
                 os.close();
                 conn.getResponseCode();
                 conn.disconnect();
-                Log.d(TAG, "取消命令已发送: " + cmdId);
+                Log.d(TAG, "HTTP cancel 已发送: " + cmdId);
             } catch (Exception e) {
-                Log.w(TAG, "取消命令失败: " + e.getMessage());
+                Log.w(TAG, "HTTP cancel 失败: " + e.getMessage());
             }
         }).start();
     }
@@ -405,7 +405,7 @@ public class TermuxBridge {
     private void startHttpProgressPoller(String callbackId, WebView webView, Activity activity, int timeoutSecs, String progressFile) {
         httpProgressRunning.put(callbackId, true);
         new Thread(() -> {
-            Log.d(TAG, "进度轮询启动: " + callbackId + " file=" + progressFile);
+            Log.d(TAG, "HTTP 进度轮询启动: " + callbackId + " file=" + progressFile);
             String lastContent = "";
             long startTime = System.currentTimeMillis();
             long deadline = startTime + (timeoutSecs + 10) * 1000L;
@@ -415,7 +415,7 @@ public class TermuxBridge {
                     && System.currentTimeMillis() < deadline) {
                 // 检查取消
                 if (cancelledCallbacks.containsKey(callbackId)) {
-                    Log.d(TAG, "进度轮询被取消: " + callbackId);
+                    Log.d(TAG, "HTTP 进度轮询被取消: " + callbackId);
                     break;
                 }
 
@@ -438,7 +438,7 @@ public class TermuxBridge {
                 }
             }
             httpProgressRunning.remove(callbackId);
-            Log.d(TAG, "进度轮询结束: " + callbackId);
+            Log.d(TAG, "HTTP 进度轮询结束: " + callbackId);
         }, "HttpProgress-" + callbackId).start();
     }
 
@@ -607,7 +607,7 @@ public class TermuxBridge {
             Log.e(TAG, "释放服务器脚本失败: " + e.getMessage());
             return;
         }
-        Log.i(TAG, "尝试启动命令服务器...");
+        Log.i(TAG, "尝试启动 HTTP 命令服务器...");
 
         // 写启动脚本文件（避免 --esa 空格截断）
         String launcherFile = "/sdcard/.termux_start_server.sh";
@@ -635,7 +635,7 @@ public class TermuxBridge {
             Log.e(TAG, "启动服务器失败: " + e.getMessage());
             return;
         }
-        Log.i(TAG, "命令服务器启动命令已发送");
+        Log.i(TAG, "HTTP 命令服务器启动命令已发送");
     }
 
     /**
@@ -668,7 +668,7 @@ public class TermuxBridge {
 
             int code = conn.getResponseCode();
             if (code != 200) {
-                Log.e(TAG, "命令执行失败: " + code);
+                Log.e(TAG, "HTTP 执行失败: " + code);
                 serverAvailable = false;
                 return null;
             }
@@ -692,11 +692,11 @@ public class TermuxBridge {
                 return "{\"error\":\"" + escapeJson(error) + "\"}";
             }
 
-            Log.d(TAG, "命令通道执行完成: exitCode=" + exitCode);
+            Log.d(TAG, "HTTP 通道执行完成: exitCode=" + exitCode);
             return buildResultJson(exitCode, output, "");
 
         } catch (Exception e) {
-            Log.e(TAG, "命令通道异常: " + e.getMessage());
+            Log.e(TAG, "HTTP 通道异常: " + e.getMessage());
             serverAvailable = false;
             return null;
         } finally {
