@@ -618,7 +618,8 @@ function generateMessageId() {
     _globalMessageIdCounter++;
     saveMessageIdCounter();
     const topicId = currentTopicId || 'default';
-    const id = `${topicId}_${_globalMessageIdCounter}`;
+    const ts = Date.now().toString(36);
+    const id = `${topicId}_${ts}_${_globalMessageIdCounter}`;
     return id;
 }
 
@@ -4446,6 +4447,27 @@ async function switchAgentAndTopic(agentId, topicId, onClose, onComplete, option
     // 应用沉浸模式
     applyImmersiveMode();
     messages = await getMessages();
+
+    // 修复重复 id：给后面的同 id 消息追加时间戳
+    if (messages.length > 0) {
+        const seenIds = new Set();
+        let needSave = false;
+        for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i];
+            if (msg.id && seenIds.has(msg.id)) {
+                const suffix = '_' + Date.now().toString(36) + '_' + i;
+                msg.id = msg.id + suffix;
+                needSave = true;
+                console.log('【ID修复】重复id已修复:', msg.id, '索引:', i);
+            }
+            if (msg.id) {
+                seenIds.add(msg.id);
+            }
+        }
+        if (needSave) {
+            await saveMessages(messages);
+        }
+    }
 
     // 迁移旧数据：确保所有消息的 prevId 链完整
     if (messages.length > 0) {
@@ -13264,7 +13286,7 @@ if (clearBtn) {
 function cascadeDeleteMessages(startSearchIds, startIndex) {
     const toDelete = new Set();
     let searchSet = new Set(startSearchIds);
-
+    
     // 级联查找
     while (searchSet.size > 0) {
         const nextIds = [];
@@ -13281,7 +13303,7 @@ function cascadeDeleteMessages(startSearchIds, startIndex) {
         }
         searchSet = new Set(nextIds);
     }
-
+    
     // 清理断链的孤儿消息（rootId 不算断链）
     const rootId = getTopicRootId();
     let foundOrphans = true;
@@ -13305,7 +13327,7 @@ function cascadeDeleteMessages(startSearchIds, startIndex) {
             }
         }
     }
-
+    
     // 执行删除（从后往前 splice）
     if (toDelete.size > 0) {
         const deleteIndices = Array.from(toDelete).sort((a, b) => a - b);
@@ -13331,7 +13353,7 @@ async function deleteMessage(messageDiv, index) {
         actualIndex = index;
         messageData = messages[index];
     }
-
+    
     // 如果是 AI 消息且有多个版本，只删除当前版本
     if (messageData && messageData.role === 'assistant' && messageData.versions && messageData.versions.length > 1) {
         const currentIndex = messageData.currentVersionIndex || 0;
@@ -13422,8 +13444,8 @@ async function deleteMessage(messageDiv, index) {
         messageData.versions.forEach(v => { if (v.id) searchIds.push(v.id); });
     }
     messages.splice(actualIndex, 1);  // 先删除起始消息
-    const cascadedCount = cascadeDeleteMessages(searchIds, 0);
-    const deleteCount = cascadedCount + 1;  // +1 是起始消息本身
+    // 从 actualIndex 开始往后级联查找，避免因重复 id 反向追溯误删前面的消息
+    const cascadedCount = cascadeDeleteMessages(searchIds, actualIndex);
 
     updateCacheOptimizeCount();
 
@@ -13578,7 +13600,7 @@ async function regenerateMessage(messageDiv, index) {
     } else {
         actualIndex = index;
     }
-
+    
     // 检查消息是否存在
     const userMsg = messages[actualIndex];
     if (!userMsg) {
