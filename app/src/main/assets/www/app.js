@@ -8623,7 +8623,7 @@ function createAssistantMessage(content, reasoning, responseId, annotations, pre
     return {
         id: msgId,
         role: 'assistant',
-        content: content,
+        content: content || '正在思考…',
         reasoning: reasoning,
         timestamp: Date.now(),
         modelName: selectedModel,
@@ -8637,7 +8637,7 @@ function createAssistantMessage(content, reasoning, responseId, annotations, pre
 function createVersion(content, reasoning, responseId, annotations, prevId) {
     return {
         id: generateMessageId(),
-        content: content,
+        content: content || '正在思考…',
         reasoning: reasoning,
         timestamp: Date.now(),
         modelName: selectedModel,
@@ -11655,7 +11655,7 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
             removeLastMessage();
             const now = new Date();
             const aiMessageId = generateMessageId();
-            currentAiMessageDiv = appendMessage('ai', '', true, false, now, null, null, 0, null, null, null, aiMessageId);
+            currentAiMessageDiv = appendMessage('ai', '正在思考…', true, false, now, null, null, 0, null, null, null, aiMessageId);
             // 暂存 AI 消息 ID，后续 createAssistantMessage 时使用
             currentAiMessageId = aiMessageId;
         }
@@ -12018,7 +12018,7 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
         console.log('targetMessage.responseId:', targetMessage.responseId || '无');
         console.log('========================');
         targetMessage.currentVersionIndex = targetMessage.versions.length - 1;
-        targetMessage.content = aiContent;
+        targetMessage.content = aiContent || '正在思考…';
         targetMessage.reasoning = reasoningContent;
         targetMessage.timestamp = Date.now();
         targetMessage.modelName = selectedModel;
@@ -12030,8 +12030,9 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
         // 更新 UI（非流式需要手动更新，流式已实时更新）
         if (!streamOutputEnabled && currentAiMessageDiv) {
             const messageContent = currentAiMessageDiv.querySelector('.message-content');
-            messageContent.innerHTML = formatMessage(aiContent);
-            messageContent.dataset.content = aiContent;
+            const displayText = aiContent || '正在思考…';
+            messageContent.innerHTML = formatMessage(displayText);
+            messageContent.dataset.content = displayText;
             if (reasoningContent) {
                 prependThinking(currentAiMessageDiv, reasoningContent);
             }
@@ -12068,11 +12069,12 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
             }
         } else {
             // 非流式需要创建消息元素
+            const displayText = aiContent || '正在思考…';
             if (reasoningContent) {
-                const newAiMessage = appendMessage('ai', aiContent, true, false, Date.now(), null, null, 0, attachmentsForDisplay, null, currentAnnotations, newMessage.id);
+                const newAiMessage = appendMessage('ai', displayText, true, false, Date.now(), null, null, 0, attachmentsForDisplay, null, currentAnnotations, newMessage.id);
                 prependThinking(newAiMessage, reasoningContent);
             } else {
-                appendMessage('ai', aiContent, true, false, Date.now(), null, null, 0, attachmentsForDisplay, null, currentAnnotations, newMessage.id);
+                appendMessage('ai', displayText, true, false, Date.now(), null, null, 0, attachmentsForDisplay, null, currentAnnotations, newMessage.id);
             }
             messages.push(newMessage);
         }

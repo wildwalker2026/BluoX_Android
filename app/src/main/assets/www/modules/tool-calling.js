@@ -3289,7 +3289,7 @@ async function handleFollowupResponse(response, round) {
                             if (!bubbleCreated) {
                                 currentAiContent = '';
                                 currentThinkingContent = '';
-                                currentAiMessageDiv = appendMessage('ai', '', true, false, Date.now());
+                                currentAiMessageDiv = appendMessage('ai', '正在思考…', true, false, Date.now());
                                 bubbleCreated = true;
                             }
                             reasoning += reasoningDelta;
@@ -3300,7 +3300,7 @@ async function handleFollowupResponse(response, round) {
                             if (!bubbleCreated) {
                                 currentAiContent = '';
                                 currentThinkingContent = '';
-                                currentAiMessageDiv = appendMessage('ai', '', true, false, Date.now());
+                                currentAiMessageDiv = appendMessage('ai', '正在思考…', true, false, Date.now());
                                 bubbleCreated = true;
                             }
                             // MiniMax 用 <think>...</think> 标签包裹思考内容，需要解析
@@ -3432,11 +3432,12 @@ async function handleFollowupResponse(response, round) {
         }
 
         // 创建消息气泡
+        const displayText = content || '正在思考…';
         if (reasoning) {
-            const newBubble = appendMessage('ai', content, true, false, Date.now());
+            const newBubble = appendMessage('ai', displayText, true, false, Date.now());
             prependThinking(newBubble, reasoning);
         } else {
-            appendMessage('ai', content, true, false, Date.now());
+            appendMessage('ai', displayText, true, false, Date.now());
         }
     }
 

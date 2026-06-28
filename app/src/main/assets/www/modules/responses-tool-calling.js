@@ -374,7 +374,7 @@ async function handleResponsesFollowupResponse(response, round) {
                         if (!bubbleCreated) {
                             currentAiContent = '';
                             currentThinkingContent = '';
-                            currentAiMessageDiv = appendMessage('ai', '', true, false, Date.now());
+                            currentAiMessageDiv = appendMessage('ai', '正在思考…', true, false, Date.now());
                             bubbleCreated = true;
                         }
                         content += chunk.delta;
@@ -388,7 +388,7 @@ async function handleResponsesFollowupResponse(response, round) {
                         if (!bubbleCreated) {
                             currentAiContent = '';
                             currentThinkingContent = '';
-                            currentAiMessageDiv = appendMessage('ai', '', true, false, Date.now());
+                            currentAiMessageDiv = appendMessage('ai', '正在思考…', true, false, Date.now());
                             bubbleCreated = true;
                         }
                         reasoning += chunk.delta;
@@ -459,11 +459,12 @@ async function handleResponsesFollowupResponse(response, round) {
         responseId = parsed.responseId;
         
         // 创建消息气泡
+        const displayText = content || '正在思考…';
         if (reasoning) {
-            const newBubble = appendMessage('ai', content, true, false, Date.now());
+            const newBubble = appendMessage('ai', displayText, true, false, Date.now());
             prependThinking(newBubble, reasoning);
         } else {
-            appendMessage('ai', content, true, false, Date.now());
+            appendMessage('ai', displayText, true, false, Date.now());
         }
     }
     
