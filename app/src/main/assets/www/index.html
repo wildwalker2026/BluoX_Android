@@ -968,8 +968,18 @@
                     <div id="pcWorkPathDisplay" style="cursor:pointer;padding:10px 12px;border:1px solid var(--border-color);border-radius:8px;font-size:14px;color:var(--text-primary);word-break:break-all;">未设置</div>
                     <small style="color: var(--text-secondary); font-size: 12px;">点击设置已连接电脑端的工作目录路径</small>
                 </div>
-
-
+                <div class="form-group" id="termuxBridgeGroup" style="display:none;">
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <span class="setting-toggle-title">Termux 桥接</span>
+                            <small class="setting-toggle-desc">桥接后无需将 Termux 置于前台即可执行命令</small>
+                        </div>
+                        <label class="checkbox-label setting-toggle-switch">
+                            <input type="checkbox" id="termuxBridgeSwitch">
+                            <span></span>
+                        </label>
+                    </div>
+                </div>
 
             </div>
         </div>

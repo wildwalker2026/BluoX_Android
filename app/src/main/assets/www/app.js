@@ -14169,6 +14169,8 @@ const workPathGroup = document.getElementById('workPathGroup');
 const workPathDisplay = document.getElementById('workPathDisplay');
 const pcWorkPathGroup = document.getElementById('pcWorkPathGroup');
 const pcWorkPathDisplay = document.getElementById('pcWorkPathDisplay');
+const termuxBridgeGroup = document.getElementById('termuxBridgeGroup');
+const termuxBridgeSwitch = document.getElementById('termuxBridgeSwitch');
 
 function saveExpertMode() {
     localStorage.setItem('cnai_expert_mode', expertModeSwitch.checked ? '1' : '0');
@@ -14183,12 +14185,16 @@ function saveExpertMode() {
     if (expertModeSwitch.checked) {
         workPathGroup.style.display = '';
         pcWorkPathGroup.style.display = '';
+        termuxBridgeGroup.style.display = '';
         workPathGroup.style.maxHeight = '0';
         workPathGroup.style.opacity = '0';
         workPathGroup.style.overflow = 'hidden';
         pcWorkPathGroup.style.maxHeight = '0';
         pcWorkPathGroup.style.opacity = '0';
         pcWorkPathGroup.style.overflow = 'hidden';
+        termuxBridgeGroup.style.maxHeight = '0';
+        termuxBridgeGroup.style.opacity = '0';
+        termuxBridgeGroup.style.overflow = 'hidden';
         void workPathGroup.offsetHeight;
         workPathGroup.style.transition = 'max-height 0.3s ease, opacity 0.3s ease';
         workPathGroup.style.maxHeight = '200px';
@@ -14196,6 +14202,9 @@ function saveExpertMode() {
         pcWorkPathGroup.style.transition = 'max-height 0.3s ease, opacity 0.3s ease';
         pcWorkPathGroup.style.maxHeight = '200px';
         pcWorkPathGroup.style.opacity = '1';
+        termuxBridgeGroup.style.transition = 'max-height 0.3s ease, opacity 0.3s ease';
+        termuxBridgeGroup.style.maxHeight = '200px';
+        termuxBridgeGroup.style.opacity = '1';
     } else {
         workPathGroup.style.transition = 'max-height 0.2s ease, opacity 0.2s ease';
         workPathGroup.style.maxHeight = '0';
@@ -14203,10 +14212,14 @@ function saveExpertMode() {
         pcWorkPathGroup.style.transition = 'max-height 0.2s ease, opacity 0.2s ease';
         pcWorkPathGroup.style.maxHeight = '0';
         pcWorkPathGroup.style.opacity = '0';
+        termuxBridgeGroup.style.transition = 'max-height 0.2s ease, opacity 0.2s ease';
+        termuxBridgeGroup.style.maxHeight = '0';
+        termuxBridgeGroup.style.opacity = '0';
         setTimeout(() => {
             if (!expertModeSwitch.checked) {
                 workPathGroup.style.display = 'none';
                 pcWorkPathGroup.style.display = 'none';
+                termuxBridgeGroup.style.display = 'none';
             }
         }, 200);
     }
@@ -14217,6 +14230,10 @@ function loadExpertMode() {
     expertModeSwitch.checked = val === '1';
     workPathGroup.style.display = expertModeSwitch.checked ? '' : 'none';
     pcWorkPathGroup.style.display = expertModeSwitch.checked ? '' : 'none';
+    termuxBridgeGroup.style.display = expertModeSwitch.checked ? '' : 'none';
+    // 加载 Termux 桥接开关状态
+    const termuxVal = localStorage.getItem('cnai_termux_bridge');
+    termuxBridgeSwitch.checked = termuxVal === '1';
     // 显示使用点数
     updateUsagePointsDisplay();
 }
@@ -14253,6 +14270,9 @@ function loadWorkPath() {
 
 if (expertModeSwitch) expertModeSwitch.addEventListener('change', function() {
     saveExpertMode();
+});
+if (termuxBridgeSwitch) termuxBridgeSwitch.addEventListener('change', function() {
+    localStorage.setItem('cnai_termux_bridge', termuxBridgeSwitch.checked ? '1' : '0');
 });
 if (workPathDisplay) {
     workPathDisplay.addEventListener('click', () => {
