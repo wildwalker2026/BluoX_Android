@@ -16015,52 +16015,58 @@ async function exportIndexedDBStore(dbName, dbVersion, storeName) {
 
 // 通用：导入数据到 IndexedDB 某个 store
 async function importIndexedDBStore(dbName, dbVersion, storeName, data) {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(dbName, dbVersion);
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-            const db = request.result;
-            if (!db.objectStoreNames.contains(storeName)) {
-                db.close();
-                reject('Store not found: ' + storeName);
-                return;
-            }
-            try {
-                const tx = db.transaction([storeName], 'readwrite');
-                const store = tx.objectStore(storeName);
-                for (const item of data) {
-                    if (item.key !== undefined) {
-                        store.put(item.value, item.key);
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < data.length; i += BATCH_SIZE) {
+        const batch = data.slice(i, i + BATCH_SIZE);
+        await new Promise((resolve, reject) => {
+            const request = indexedDB.open(dbName, dbVersion);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+                const db = request.result;
+                if (!db.objectStoreNames.contains(storeName)) {
+                    db.close();
+                    reject('Store not found: ' + storeName);
+                    return;
+                }
+                try {
+                    const tx = db.transaction([storeName], 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    for (const item of batch) {
+                        if (item.key !== undefined) {
+                            store.put(item.value, item.key);
+                        } else {
+                            store.put(item);
+                        }
+                    }
+                    tx.oncomplete = () => {
+                        db.close();
+                        resolve();
+                    };
+                    tx.onerror = () => {
+                        db.close();
+                        reject(tx.error);
+                    };
+                } catch (e) {
+                    db.close();
+                    reject(e);
+                }
+            };
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(storeName)) {
+                    const hasIdField = data && data.length > 0 && data[0] && typeof data[0].id !== 'undefined' && data[0].key === undefined;
+                    if (hasIdField) {
+                        db.createObjectStore(storeName, { keyPath: 'id' });
                     } else {
-                        store.put(item);
+                        db.createObjectStore(storeName);
                     }
                 }
-                tx.oncomplete = () => {
-                    db.close();
-                    resolve();
-                };
-                tx.onerror = () => {
-                    db.close();
-                    reject(tx.error);
-                };
-            } catch (e) {
-                db.close();
-                reject(e);
-            }
-        };
-        request.onupgradeneeded = (e) => {
-            const db = e.target.result;
-            if (!db.objectStoreNames.contains(storeName)) {
-                // 根据数据内容判断是否需要 keyPath
-                const hasIdField = data && data.length > 0 && data[0] && typeof data[0].id !== 'undefined' && data[0].key === undefined;
-                if (hasIdField) {
-                    db.createObjectStore(storeName, { keyPath: 'id' });
-                } else {
-                    db.createObjectStore(storeName);
-                }
-            }
-        };
-    });
+            };
+        });
+        if ((i / BATCH_SIZE) % 5 === 0) {
+            await new Promise(r => setTimeout(r, 0));
+        }
+    }
 }
 
 // 备份数据
@@ -16262,14 +16268,26 @@ async function _restoreFromData(rawText) {
         }
     }
 
+    // 恢复消息数据到 IndexedDB（分批写入，避免 ANR）
     if (messagesToRestore.length > 0 && messageDB) {
         try {
-            const tx = messageDB.transaction([MESSAGE_STORE_NAME], 'readwrite');
-            const store = tx.objectStore(MESSAGE_STORE_NAME);
-            for (const item of messagesToRestore) {
-                store.put(item);
-                _messageExistsCache.add(item.key);
-                _messageRoundCache[item.key] = item.messages.filter(m => m.role === 'user').length;
+            const BATCH_SIZE = 500;
+            for (let i = 0; i < messagesToRestore.length; i += BATCH_SIZE) {
+                const batch = messagesToRestore.slice(i, i + BATCH_SIZE);
+                await new Promise((resolve, reject) => {
+                    const tx = messageDB.transaction([MESSAGE_STORE_NAME], 'readwrite');
+                    const store = tx.objectStore(MESSAGE_STORE_NAME);
+                    for (const item of batch) {
+                        store.put(item);
+                        _messageExistsCache.add(item.key);
+                        _messageRoundCache[item.key] = item.messages.filter(m => m.role === 'user').length;
+                    }
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error);
+                });
+                if ((i / BATCH_SIZE) % 5 === 0) {
+                    await new Promise(r => setTimeout(r, 0));
+                }
             }
             console.log('恢复: IndexedDB 消息已恢复', messagesToRestore.length, '条记录');
         } catch (e) {
@@ -16304,6 +16322,8 @@ async function _restoreFromData(rawText) {
                 } catch (e) {
                     console.error('恢复:', key, '失败', e);
                 }
+                // 每个数据库恢复完后让出主线程
+                await new Promise(r => setTimeout(r, 0));
             }
         }
     }
@@ -16327,7 +16347,69 @@ function restoreData(file) {
     reader.readAsText(file);
 }
 
-// 处理安卓端选择的恢复数据文件（支持加密和明文备份）
+// 通过 AndroidBridge.readUriContent 分段读取 URI 内容（fetch fallback）
+async function _readUriViaBridge(uri) {
+    const CHUNK_SIZE = 1024 * 1024; // 每段 1MB，减少往返次数
+    let offset = 0;
+    let parts = [];
+    let totalSize = -1;
+    while (true) {
+        const resultJson = AndroidBridge.readUriContent(uri, offset, CHUNK_SIZE);
+        const result = JSON.parse(resultJson);
+        if (result.error) {
+            throw new Error(result.error);
+        }
+        parts.push(result.text);
+        if (totalSize < 0 && result.totalSize > 0) {
+            totalSize = result.totalSize;
+        }
+        if (result.endOfFile) break;
+        offset += CHUNK_SIZE;
+        // 每 10 段让出一次主线程，减少不必要的调度开销
+        if (parts.length % 10 === 0) {
+            await new Promise(r => setTimeout(r, 0));
+        }
+    }
+    return parts.join('');
+}
+
+// 处理安卓端选择的恢复数据文件（通过 URI，支持大文件）
+// 由 Java 端传入 content:// URI，JS 端自行 fetch 读取
+// 如果 fetch 失败（content:// 协议在某些 WebView 版本不支持），降级为 AndroidBridge 分段读取
+window.handleAndroidRestoreFile = async function (uri) {
+    if (!uri) {
+        showToast('读取文件失败');
+        return;
+    }
+    try {
+        showToast('正在读取备份文件...');
+        let rawText;
+        // 先尝试 fetch（更快），失败则降级为 bridge 分段读取
+        if (window.AndroidBridge && typeof AndroidBridge.readUriContent === 'function') {
+            try {
+                const response = await fetch(uri);
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                rawText = await response.text();
+            } catch (fetchError) {
+                console.warn('fetch 读取失败，降级为 bridge 分段读取:', fetchError.message);
+                rawText = await _readUriViaBridge(uri);
+            }
+        } else {
+            const response = await fetch(uri);
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            rawText = await response.text();
+        }
+        _restoreFromData(rawText).catch(error => {
+            console.error('恢复数据失败:', error);
+            showToast('恢复数据失败，请检查文件格式');
+        });
+    } catch (e) {
+        console.error('读取备份文件失败:', e);
+        showToast('读取文件失败: ' + e.message);
+    }
+};
+
+// 兼容旧版：保留 handleAndroidRestoreData 作为 fallback
 window.handleAndroidRestoreData = async function (rawText) {
     if (!rawText) {
         showToast('读取文件失败');
@@ -17131,6 +17213,37 @@ window.handleAndroidKnowledgeFilesSelected = async function (filesData) {
         showToast(`成功上传 ${successCount} 个文档${errorCount > 0 ? `，${errorCount} 个失败` : ''}`);
     } else {
         showToast('文档上传失败');
+    }
+};
+
+// 处理安卓端导入聊天记录文件（通过 URI，支持大文件）
+window.importChatFile = async function (uri) {
+    if (!uri) {
+        showToast('读取文件失败');
+        return;
+    }
+    try {
+        showToast('正在读取聊天记录...');
+        let rawText;
+        // 先尝试 fetch（更快），失败则降级为 bridge 分段读取
+        if (window.AndroidBridge && typeof AndroidBridge.readUriContent === 'function') {
+            try {
+                const response = await fetch(uri);
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                rawText = await response.text();
+            } catch (fetchError) {
+                console.warn('fetch 读取失败，降级为 bridge 分段读取:', fetchError.message);
+                rawText = await _readUriViaBridge(uri);
+            }
+        } else {
+            const response = await fetch(uri);
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            rawText = await response.text();
+        }
+        importChatData(rawText);
+    } catch (e) {
+        console.error('读取聊天记录失败:', e);
+        showToast('读取文件失败: ' + e.message);
     }
 };
 

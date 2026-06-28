@@ -45,6 +45,7 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -1040,36 +1041,29 @@ public class MainActivity extends Activity {
             Uri uri = data.getData();
             if (uri != null) {
                 try {
-                    InputStream inputStream = getContentResolver().openInputStream(uri);
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
-                    StringBuilder stringBuilder = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        stringBuilder.append(line);
-                    }
-                    reader.close();
-                    inputStream.close();
-
-                    final String jsonContent = stringBuilder.toString();
+                    // 不再全量读取文件内容到内存，改为将 URI 传给 JS 端自行读取
+                    // 避免大文件（100MB+）导致 OOM 和 Binder 传输限制
+                    final String uriStr = uri.toString();
                     final boolean restoreMode = isRestoreDataMode;
                     isRestoreDataMode = false; // 重置标志
                     runOnUiThread(() -> {
-                        // 将内容转义为安全的 JS 字符串，支持加密备份和明文备份
-                        String escapedContent = jsonContent
+                        // 对 URI 进行 JS 转义
+                        String escapedUri = uriStr
                             .replace("\\", "\\\\")
                             .replace("\"", "\\\"")
                             .replace("\n", "\\n")
                             .replace("\r", "\\r")
                             .replace("\t", "\\t");
-                        // 根据模式调用不同的 JavaScript 函数
                         if (restoreMode) {
+                            // 恢复备份数据：JS 端通过 fetch(uri) 自行读取
                             webView.evaluateJavascript(
-                                    "if (typeof handleAndroidRestoreData === 'function') { handleAndroidRestoreData(\"" + escapedContent + "\"); }",
+                                    "if (typeof handleAndroidRestoreFile === 'function') { handleAndroidRestoreFile(\"" + escapedUri + "\"); }",
                                     null
                             );
                         } else {
+                            // 导入聊天记录：JS 端通过 fetch(uri) 自行读取
                             webView.evaluateJavascript(
-                                    "if (typeof importChatData === 'function') { importChatData(\"" + escapedContent + "\"); }",
+                                    "if (typeof importChatFile === 'function') { importChatFile(\"" + escapedUri + "\"); }",
                                     null
                             );
                         }
@@ -3632,6 +3626,69 @@ public class MainActivity extends Activity {
                     return android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
                 } catch (Exception e) {
                     return "";
+                }
+            }
+
+            /**
+             * 通过 content:// URI 分段读取文件内容（用于大文件恢复的 fallback）
+             * 当 JS 端 fetch(content://) 失败时，通过此方法分段读取
+             * @param uriStr content:// URI 字符串
+             * @param offset 读取起始位置（字节偏移）
+             * @param length 读取字节数（最大 1MB）
+             * @return JSON: {"text":"...", "totalSize":123456, "endOfFile":false} 或 {"error":"..."}
+             */
+            @JavascriptInterface
+            public String readUriContent(String uriStr, long offset, int length) {
+                try {
+                    if (length <= 0 || length > 1024 * 1024) length = 1024 * 1024; // 限制最大 1MB
+                    Uri uri = Uri.parse(uriStr);
+                    InputStream inputStream = getContentResolver().openInputStream(uri);
+                    if (inputStream == null) {
+                        return "{\"error\":\"无法打开文件\"}";
+                    }
+                    // 跳过 offset 字节
+                    long skipped = 0;
+                    while (skipped < offset) {
+                        long s = inputStream.skip(offset - skipped);
+                        if (s <= 0) break;
+                        skipped += s;
+                    }
+                    // 读取指定长度的字节
+                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                    byte[] buf = new byte[8192];
+                    int totalRead = 0;
+                    int len;
+                    while (totalRead < length && (len = inputStream.read(buf, 0, Math.min(buf.length, length - totalRead))) != -1) {
+                        buffer.write(buf, 0, len);
+                        totalRead += len;
+                    }
+                    inputStream.close();
+                    
+                    // 获取文件总大小
+                    long totalSize = -1;
+                    try {
+                        android.database.Cursor cursor = getContentResolver().query(uri, null, null, null, null);
+                        if (cursor != null && cursor.moveToFirst()) {
+                            int sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE);
+                            if (sizeIndex >= 0) {
+                                totalSize = cursor.getLong(sizeIndex);
+                            }
+                            cursor.close();
+                        }
+                    } catch (Exception ignored) {}
+                    
+                    String text = new String(buffer.toByteArray(), "UTF-8");
+                    // 转义为安全的 JSON 字符串
+                    String escaped = text
+                        .replace("\\", "\\\\")
+                        .replace("\"", "\\\"")
+                        .replace("\n", "\\n")
+                        .replace("\r", "\\r")
+                        .replace("\t", "\\t");
+                    boolean endOfFile = totalRead < length;
+                    return "{\"text\":\"" + escaped + "\",\"totalSize\":" + totalSize + ",\"endOfFile\":" + endOfFile + "}";
+                } catch (Exception e) {
+                    return "{\"error\":\"" + e.getMessage().replace("\\", "\\\\").replace("\"", "\\\"") + "\"}";
                 }
             }
 
