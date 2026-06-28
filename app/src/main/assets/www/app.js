@@ -13653,8 +13653,8 @@ async function regenerateMessage(messageDiv, index) {
                 // 清空旧内容，准备接收新内容
                 const msgContent = aiMsgDiv.querySelector('.message-content');
                 if (msgContent) {
-                    msgContent.innerHTML = '';
-                    msgContent.dataset.content = '';
+                    msgContent.innerHTML = '正在思考…';
+                    msgContent.dataset.content = '正在思考…';
                 }
                 // 移除旧的思考内容
                 const oldThinking = aiMsgDiv.querySelector('.thinking-content');
