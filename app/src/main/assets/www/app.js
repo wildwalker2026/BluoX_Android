@@ -10903,7 +10903,14 @@ function buildRequestBody(systemPrompt = null, targetMessage = null, knowledgeCo
         systemContent += '\n\n你运行在 Android 手机端（小蓝AI盒子 App）。';
         const effectivePrefix = dataPrefix || '/storage/emulated/0/Download/Bluox';
         systemContent += `\n\n## 笔记本\n笔记存储在 ${effectivePrefix}/Notes 目录中。用户可以通过笔记本功能记录信息，你也可以通过工具读写笔记。`;
-        systemContent += `\n\n## Skills\nSkills 存储在 ${effectivePrefix}/Skills 目录中，每个子目录是一个 skill。Skill 有两种类型：\n1. **可执行工具**：目录下有 SKILL.md（含 YAML 头定义 name/description/parameters）和 execute.sh，会自动注册为工具供你调用。\n2. **参考文档**：目录下只有 SKILL.md（无 runtime/parameters 字段），你需要主动读取其内容作为参考。\n\n你可以用 read_file 或 list_directory 浏览 Skills 目录，了解当前可用的 skill。`;
+        systemContent += `\n\n## Skills（遵循 agentskills.io 标准）\n\nSkills 存储在 ${effectivePrefix}/Skills 目录中，每个子目录（名称 = skill name）是一个 skill。\n\n### 目录结构\n\`\`\`\nskill-name/\n├── SKILL.md          # 必选：YAML frontmatter（name, description 等）+ Markdown 说明\n├── scripts/          # 可选：可执行脚本\n├── references/       # 可选：参考文档\n└── assets/           # 可选：模板、资源文件\n\`\`\`\n\n### 渐进披露（Progressive Disclosure）\n- **Level 0**：所有 skill 的 name 和 description 已在启动时扫描。可执行 skill 已注册为工具供你直接调用。\n- **Level 1**：需要完整的操作说明时，用 read_file 读取 skill 目录下的 SKILL.md 获取 body 内容。\n- **Level 2**：需要更多细节时，用 read_file 读取 references/ 下的文件，或用 loadSkillResource 按需加载。\n\n### Skill 类型\n1. **可执行工具**：有 execute.sh 或 runtime.conf，已自动注册为工具，直接调用即可。\n2. **参考文档**：仅有 SKILL.md，未注册为工具。你需要用 read_file 主动读取其 SKILL.md 来获取参考信息。\n\n你可以用 execute_command 执行 ls 命令来浏览 Skills 目录，了解当前可用的所有 skill。`;
+        // 注入统一 Skill 索引（Level 0：可执行 + 参考文档同列）
+        if (typeof buildAllSkillsIndex === 'function') {
+            const refIndex = buildAllSkillsIndex();
+            if (refIndex) {
+                systemContent += '\n\n' + refIndex;
+            }
+        }
         systemContent += '\n\n## 数学计算工具\n你可以使用 math_calculate 工具进行精确数学计算。支持：四则运算、三角函数、求导（derivative）、方程求解（solve）、定积分（integrate）、矩阵运算、行列式（det）、统计、单位换算、复数运算等。遇到数学问题时，务必使用此工具确保结果精确。';
         systemContent += '\n\n## 数据可视化工具\n你可以使用 generate_chart 工具生成数据可视化图表。传入 ECharts option 配置即可生成折线图、柱状图、饼图、散点图、雷达图、热力图等。工具会返回 chartId，你需要在回复文本中用 [chart:chartId] 嵌入图表，图表会直接展示给用户。';
         

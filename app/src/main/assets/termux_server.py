@@ -104,13 +104,13 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
             # 进度文件：优先用 Java 传入的路径，否则自动生成
             if not output_file:
                 output_file = '/sdcard/Download/Bluox/Notes/.termux_http_out_{}.txt'.format(int(time.time() * 1000))
-            # 用 tee 包装命令：输出同时写到管道和进度文件
-            wrapped_cmd = '{ ' + cmd + ' ; } 2>&1 | stdbuf -oL tee ' + output_file
+            # 直接把输出重定向到文件，不用管道（避免管道缓冲满导致死锁）
+            wrapped_cmd = '{ ' + cmd + ' ; } > ' + output_file + ' 2>&1'
 
             proc = subprocess.Popen(
                 ['/data/data/com.termux/files/usr/bin/bash', '-c', wrapped_cmd],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 cwd=workdir if workdir and os.path.isdir(workdir) else None,
                 env=env,
                 preexec_fn=os.setsid
@@ -135,7 +135,13 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
                     except Exception:
                         proc.kill()
                     proc.wait()
-                    stdout = proc.stdout.read().decode('utf-8', errors='replace')
+                    stdout = ''
+                    try:
+                        if os.path.exists(output_file):
+                            with open(output_file, 'r', encoding='utf-8', errors='replace') as f:
+                                stdout = f.read()
+                    except Exception:
+                        pass
                     self._send_json(200, {
                         'exitCode': -1,
                         'output': '命令执行超时（{}秒），已终止\n{}'.format(timeout, stdout)
@@ -144,7 +150,13 @@ class CommandHandler(http.server.BaseHTTPRequestHandler):
                 # 关键：用 IO 等待代替 time.sleep，避免被冻结
                 io_sleep(min(0.5, remaining))
 
-            stdout = proc.stdout.read().decode('utf-8', errors='replace')
+            stdout = ''
+            try:
+                if os.path.exists(output_file):
+                    with open(output_file, 'r', encoding='utf-8', errors='replace') as f:
+                        stdout = f.read()
+            except Exception:
+                pass
             exit_code = proc.returncode
 
             if len(stdout) > MAX_OUTPUT:

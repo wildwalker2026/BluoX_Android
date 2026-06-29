@@ -809,7 +809,8 @@
                 var isDisabled = typeof isSkillEnabled === 'function' && !isSkillEnabled(displayName);
                 var desc = skill.description || '';
                 if (desc.length > 60) desc = desc.substring(0, 60) + '...';
-                var skillMd = skill.body ? ('---\nname: ' + skill.name + '\ndescription: ' + skill.description + '\n---\n\n' + skill.body) : '';
+                // 渐进披露：body 不存储在 scannedSkills 中，需要时从 AndroidBridge 按需加载
+                var skillMd = ''; // Level 1 按需加载
 
                 var tag;
                 var tagColor, tagBg;
@@ -856,33 +857,36 @@
                 div.appendChild(infoDiv);
 
                 // 点击整行弹出操作菜单（所有 skill 统一）
-                div.addEventListener('click', function (n, disabled, md, exec) {
+                div.addEventListener('click', function (n, disabled, exec) {
                     return function (e) {
                         if (exec) {
                             showSkillActionMenu(e, n, disabled);
-                        } else if (md) {
-                            // 参考文档：直接打开查看
-                            var body = md.replace(/^---[\s\S]*?---\n?/, '').trim();
-                            if (!body) body = md;
-                            if (typeof openModalWithFade === 'function') {
-                                var previewModal = document.getElementById('notebookEditModal');
-                                if (previewModal) {
-                                    var titleEl = document.getElementById('notebookEditTitle');
-                                    if (titleEl) titleEl.textContent = 'Skill: ' + n;
-                                    var contentEl = document.getElementById('notebookContent');
-                                    if (contentEl) {
-                                        contentEl.innerHTML = '<pre style="white-space:pre-wrap;font-size:13px;line-height:1.6;margin:0;">' + escapeHtml(body) + '</pre>';
+                        } else {
+                            // 参考文档：Level 1 按需加载 SKILL.md body
+                            var md = window.AndroidBridge && window.AndroidBridge.readSkillFile(n);
+                            if (md) {
+                                var body = md.replace(/^---[\s\S]*?---\n?/, '').trim();
+                                if (!body) body = md;
+                                if (typeof openModalWithFade === 'function') {
+                                    var previewModal = document.getElementById('notebookEditModal');
+                                    if (previewModal) {
+                                        var titleEl = document.getElementById('notebookEditTitle');
+                                        if (titleEl) titleEl.textContent = 'Skill: ' + n;
+                                        var contentEl = document.getElementById('notebookContent');
+                                        if (contentEl) {
+                                            contentEl.innerHTML = '<pre style="white-space:pre-wrap;font-size:13px;line-height:1.6;margin:0;">' + escapeHtml(body) + '</pre>';
+                                        }
+                                        var textareaEl = document.getElementById('notebookTextarea');
+                                        if (textareaEl) textareaEl.style.display = 'none';
+                                        var syncBtn = document.getElementById('notebookEditSyncBtn');
+                                        if (syncBtn) syncBtn.style.display = 'none';
+                                        openModalWithFade(previewModal);
                                     }
-                                    var textareaEl = document.getElementById('notebookTextarea');
-                                    if (textareaEl) textareaEl.style.display = 'none';
-                                    var syncBtn = document.getElementById('notebookEditSyncBtn');
-                                    if (syncBtn) syncBtn.style.display = 'none';
-                                    openModalWithFade(previewModal);
                                 }
                             }
                         }
                     };
-                }(displayName, isDisabled, skillMd, hasExecutor));
+                }(displayName, isDisabled, hasExecutor));
 
                 notebookList.appendChild(div);
             }

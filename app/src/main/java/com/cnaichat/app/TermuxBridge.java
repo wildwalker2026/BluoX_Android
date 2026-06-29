@@ -312,7 +312,8 @@ public class TermuxBridge {
                 stopHttpProgressPoller(callbackId);
                 cleanupProgressFile(progressFile);
                 if (result == null) {
-                    // HTTP 失败，回退文件轮询
+                    // HTTP 失败，先取消 Python 端可能已启动的命令，再回退文件轮询
+                    cancelCommandViaHttp(callbackId);
                     new Handler(Looper.getMainLooper()).post(() -> {
                         android.widget.Toast.makeText(context, "连接错误，使用直连方案", android.widget.Toast.LENGTH_SHORT).show();
                     });

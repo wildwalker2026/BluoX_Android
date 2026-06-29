@@ -2935,9 +2935,9 @@ async function executeToolCall(tc) {
 
             // 执行函数（异步回调）
             const doExecute = async () => {
-                // 初始化全局回调注册表（只创建一次，永不覆盖）
-                if (!window._termuxCallbacks) {
-                    window._termuxCallbacks = {};
+                // 确保全局回调注册表存在（模块顶层已初始化，此处做 fallback 检查）
+                if (!window._termuxCallbacks) window._termuxCallbacks = {};
+                if (!window._onTermuxResult) {
                     window._onTermuxResult = function(cbId, data) {
                         var cb = window._termuxCallbacks[cbId];
                         if (cb) {
@@ -2945,8 +2945,9 @@ async function executeToolCall(tc) {
                             cb(typeof data === 'string' ? data : JSON.stringify(data));
                         }
                     };
-                    // 进度回调：实时更新 tool-call-result（用 cbId 映射元素）
-                    window._termuxProgressEls = {};
+                }
+                if (!window._termuxProgressEls) window._termuxProgressEls = {};
+                if (!window._onTermuxProgress) {
                     window._onTermuxProgress = function(cbId, progress) {
                         var el = window._termuxProgressEls[cbId];
                         if (el && progress) {

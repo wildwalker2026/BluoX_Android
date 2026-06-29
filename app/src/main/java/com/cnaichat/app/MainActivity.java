@@ -4722,6 +4722,9 @@ public class MainActivity extends Activity {
                                 obj.put("name", f.getName());
                                 obj.put("hasExecuteSh", new File(f, "execute.sh").exists());
                                 obj.put("hasRuntimeConf", new File(f, "runtime.conf").exists());
+                                obj.put("hasScripts", new File(f, "scripts").isDirectory());
+                                obj.put("hasReferences", new File(f, "references").isDirectory());
+                                obj.put("hasAssets", new File(f, "assets").isDirectory());
                                 arr.put(obj);
                             }
                         }

@@ -1,37 +1,35 @@
 /**
- * skill-loader.js — Skill 系统加载器
+ * skill-loader.js — Skill 系统加载器（agentskills.io 标准兼容）
  *
- * 把 Skills 目录下的每个子目录当作一个"可执行的笔记"（skill），
- * 自动扫描 SKILL.md 中的 YAML 头，注册为 AI 可调用的工具。
+ * 遵循 agentskills.io 标准的渐进披露（Progressive Disclosure）：
+ *   Level 0: 扫描时只加载 name + description + license/compatibility/metadata（~100 tokens/skill）
+ *   Level 1: 激活时按需加载完整 SKILL.md body（通过 loadSkillBody）
+ *   Level 2: 需要时才加载 scripts/references/assets 下的文件（通过 loadSkillResource）
  *
- * 目录结构：
+ * 目录结构（agentskills.io 标准）：
  *   /sdcard/Download/Bluox/Skills/
- *     ├── video-opener/
- *     │   ├── SKILL.md          # 工具定义（YAML头）+ 给AI看的说明
- *     │   └── execute.sh        # 执行脚本
- *     └── dark-saas-video/
- *         ├── SKILL.md
- *         └── execute.sh
+ *     └── skill-name/
+ *         ├── SKILL.md          # 必选：YAML frontmatter + Markdown body
+ *         ├── scripts/          # 可选：可执行脚本
+ *         ├── references/       # 可选：参考文档
+ *         └── assets/           # 可选：模板、资源
  *
- * SKILL.md 格式：
+ * SKILL.md 格式（agentskills.io 标准）：
  *   ---
- *   name: create_video_opener
- *   description: 生成视频开场动画的时间线计划
- *   runtime: builtin        # builtin（内置终端）| termux（Termux环境）
- *   parameters:
- *     type: object
- *     properties:
- *       title:
- *         type: string
- *         description: 开场主词
- *     required: [title]
+ *   name: skill-name            # 必选 1-64字符 a-z0-9-
+ *   description: ...            # 必选 1-1024字符
+ *   license: Apache-2.0         # 可选
+ *   compatibility: ...          # 可选 1-500字符
+ *   metadata:                   # 可选 key-value
+ *     version: "1.0"
+ *   allowed-tools: ...          # 可选（实验性）
  *   ---
- *   # 给 AI 看的详细说明...
+ *   # Markdown body...
  */
 
 // ==================== 状态 ====================
 
-/** 已扫描的 skill 列表 */
+/** 已扫描的 skill 列表（Level 0：仅元数据，不含 body） */
 let scannedSkills = [];
 
 /**
@@ -128,9 +126,7 @@ function parseSkillMd(content) {
             // 列表项: - item
             if (trimmed.startsWith('- ')) {
                 const itemVal = parseYamlValue(trimmed.substring(2).trim());
-                // 找父级最近的一个数组，没有则创建
                 if (!Array.isArray(parentObj._lastArray)) {
-                    // 需要找到当前 key 对应的数组
                     const parentKey = stack[stack.length - 1].key;
                     if (parentKey && parentObj[parentKey] === undefined) {
                         parentObj[parentKey] = [];
@@ -216,7 +212,21 @@ function parseSkillMd(content) {
         return root;
     }
 
-    const header = buildTree(yamlText.split('\n'));
+    const rawHeader = buildTree(yamlText.split('\n'));
+
+    // 标准化提取 agentskills.io 标准字段
+    const header = {
+        name: rawHeader.name || null,
+        description: rawHeader.description || null,
+        license: rawHeader.license || null,
+        compatibility: rawHeader.compatibility || null,
+        metadata: rawHeader.metadata || null,
+        allowedTools: rawHeader['allowed-tools'] || rawHeader.allowed_tools || null,
+        // 非标准字段（向后兼容）
+        version: rawHeader.version || null,
+        _raw: rawHeader
+    };
+
     return { header, body };
 }
 
@@ -238,7 +248,6 @@ function parseYamlValue(val) {
         try {
             return JSON.parse(val);
         } catch (e) {
-            // 简单逗号分割
             return val.slice(1, -1).split(',').map(s => parseYamlValue(s.trim())).filter(s => s !== '');
         }
     }
@@ -260,14 +269,68 @@ function parseYamlValue(val) {
     return val;
 }
 
-// ==================== 扫描与注册 ====================
+// ==================== 字段验证（agentskills.io 标准） ====================
 
 /**
- * 扫描 Skills 目录，加载所有 SKILL.md
- * @returns {Promise<Array>} skill 列表
+ * 验证 SKILL.md 的 frontmatter 是否符合 agentskills.io 标准
+ * @param {object} header - 解析后的 YAML 头
+ * @param {string} dirName - 目录名
+ * @returns {string[]} 警告列表（空数组表示完全合规）
+ */
+function validateSkill(header, dirName) {
+    const warnings = [];
+
+    // name 必填
+    if (!header.name) {
+        warnings.push('缺少必填字段 name');
+    } else {
+        // name 格式：1-64 字符，仅 a-z 0-9 连字符，不能以连字符开头/结尾，不能有连续连字符
+        if (typeof header.name !== 'string') {
+            warnings.push('name 必须是字符串');
+        } else {
+            if (header.name.length < 1 || header.name.length > 64) {
+                warnings.push('name 长度应为 1-64 字符（当前 ' + header.name.length + '）');
+            }
+            if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(header.name)) {
+                warnings.push('name 格式不符合 agentskills.io 标准：仅允许小写字母(a-z)、数字(0-9)和连字符(-)，不能以连字符开头/结尾，不能有连续连字符。当前值: "' + header.name + '"');
+            }
+            if (header.name !== dirName) {
+                warnings.push('name "' + header.name + '" 与目录名 "' + dirName + '" 不一致（agentskills.io 要求一致）');
+            }
+        }
+    }
+
+    // description 必填，1-1024 字符
+    if (!header.description) {
+        warnings.push('缺少必填字段 description');
+    } else if (typeof header.description === 'string') {
+        if (header.description.length < 1) {
+            warnings.push('description 不能为空');
+        } else if (header.description.length > 1024) {
+            warnings.push('description 超过 1024 字符限制（当前 ' + header.description.length + '）');
+        }
+    }
+
+    // compatibility 可选，1-500 字符
+    if (header.compatibility && typeof header.compatibility === 'string') {
+        if (header.compatibility.length > 500) {
+            warnings.push('compatibility 超过 500 字符限制（当前 ' + header.compatibility.length + '）');
+        }
+    }
+
+    return warnings;
+}
+
+// ==================== 扫描与注册（Level 0：渐进披露） ====================
+
+/**
+ * 扫描 Skills 目录，加载所有 skill 的元数据（Level 0）
+ * 遵循 agentskills.io：只提取 YAML 头中的 name/description/license/compatibility/metadata
+ * 不加载 body（body 在 Level 1 按需加载）
+ *
+ * @returns {Promise<Array>} skill 元数据列表（不含 body）
  */
 async function scanSkills() {
-    // 通过 AndroidBridge 获取 skill 目录列表
     if (!window.AndroidBridge || typeof window.AndroidBridge.scanSkillsDir !== 'function') {
         console.warn('[SkillLoader] AndroidBridge.scanSkillsDir 不可用');
         return [];
@@ -279,10 +342,6 @@ async function scanSkills() {
     try {
         skillEntries = JSON.parse(dirListJson);
         console.log('[SkillLoader] 解析后:', JSON.stringify(skillEntries));
-        console.log('[SkillLoader] 第一个元素类型:', typeof skillEntries[0]);
-        if (typeof skillEntries[0] === 'object') {
-            console.log('[SkillLoader] 第一个元素字段:', Object.keys(skillEntries[0]));
-        }
     } catch (e) {
         console.error('[SkillLoader] 解析 skill 目录列表失败:', e);
         return [];
@@ -294,24 +353,19 @@ async function scanSkills() {
     }
 
     // 兼容旧格式：如果是字符串数组，转成对象数组
-    // 同时主动检测 execute.sh 和 runtime.conf 是否存在
     if (typeof skillEntries[0] === 'string') {
         skillEntries = skillEntries.map(function(name) {
             var hasRuntimeConf = false;
             var hasExecuteSh = false;
+            var hasScripts = false;
+            var hasReferences = false;
+            var hasAssets = false;
             if (window.AndroidBridge && typeof window.AndroidBridge.readSkillDirFile === 'function') {
                 hasRuntimeConf = window.AndroidBridge.readSkillDirFile(name, 'runtime.conf') !== '';
                 hasExecuteSh = window.AndroidBridge.readSkillDirFile(name, 'execute.sh') !== '';
-            } else {
-                // readSkillDirFile 不可用（旧版 APK），通过 SKILL.md 内容推断
-                var md = window.AndroidBridge && window.AndroidBridge.readSkillFile(name);
-                if (md) {
-                    // 有 runtime.conf 关键词或 execute.sh 引用，视为可执行
-                    hasRuntimeConf = md.indexOf('runtime.conf') !== -1 || md.indexOf('Runtime:') !== -1;
-                    hasExecuteSh = md.indexOf('execute.sh') !== -1;
-                }
             }
-            return { name: name, hasExecuteSh: hasExecuteSh, hasRuntimeConf: hasRuntimeConf };
+            return { name: name, hasExecuteSh: hasExecuteSh, hasRuntimeConf: hasRuntimeConf,
+                     hasScripts: hasScripts, hasReferences: hasReferences, hasAssets: hasAssets };
         });
     }
 
@@ -319,7 +373,7 @@ async function scanSkills() {
     for (const entry of skillEntries) {
         const dirName = entry.name;
         try {
-            // 读取 SKILL.md
+            // Level 0: 读取 SKILL.md，只提取 YAML 头（不保存 body）
             const content = window.AndroidBridge.readSkillFile(dirName);
             if (!content) {
                 console.warn('[SkillLoader] 读取 SKILL.md 失败:', dirName);
@@ -332,14 +386,21 @@ async function scanSkills() {
                 continue;
             }
 
-            // 判定是否为可执行工具：有 execute.sh 或 runtime.conf 或 YAML 头中有 runtime 字段
-            const hasExecutor = !!header.runtime || entry.hasExecuteSh || entry.hasRuntimeConf;
-            console.log('[SkillLoader] skill:', dirName, 'hasExecutor:', hasExecutor, 'hasRuntimeConf:', entry.hasRuntimeConf, 'hasExecuteSh:', entry.hasExecuteSh, 'header.runtime:', header.runtime);
+            // 验证是否符合 agentskills.io 标准
+            const warnings = validateSkill(header, dirName);
+            if (warnings.length > 0) {
+                console.warn('[SkillLoader] ⚠️ ' + dirName + ' 不符合 agentskills.io 标准:');
+                warnings.forEach(function(w) { console.warn('  - ' + w); });
+            }
+
+            // 判定是否为可执行工具
+            const hasExecutor = !!header._raw.runtime || entry.hasExecuteSh || entry.hasRuntimeConf;
 
             // 检测 skill 模式：
             // - 'parameters' 模式：SKILL.md 有 parameters 字段，AI 传结构化参数
             // - 'cli' 模式：有 runtime.conf 但无 parameters，AI 传 command 字符串
-            const hasParameters = !!header.parameters;
+            // - 'reference' 模式：仅有 SKILL.md，AI 用 read_file 读取
+            const hasParameters = !!header._raw.parameters;
             const skillMode = hasParameters ? 'parameters' : (entry.hasRuntimeConf ? 'cli' : 'reference');
 
             // cli 模式：读取 runtime.conf 获取命令前缀
@@ -358,50 +419,137 @@ async function scanSkills() {
             }
 
             const enabled = isSkillEnabled(header.name);
+
             const skill = {
+                // ===== agentskills.io 标准字段（Level 0 metadata）=====
                 name: header.name,
                 description: header.description || '',
-                runtime: header.runtime || 'builtin',
-                parameters: header.parameters || null,
+                license: header.license || null,
+                compatibility: header.compatibility || null,
+                metadata: header.metadata || null,
+                allowedTools: header.allowedTools || null,
+
+                // ===== 自定义扩展（兼容旧版）=====
+                version: header.version || (header.metadata && header.metadata.version) || null,
+                runtime: header._raw.runtime || 'builtin',
+                parameters: header._raw.parameters || null,
+
+                // ===== 目录结构（agentskills.io 可选目录）=====
+                hasScripts: !!entry.hasScripts,
+                hasReferences: !!entry.hasReferences,
+                hasAssets: !!entry.hasAssets,
+
+                // ===== 执行状态 =====
                 hasExecutor: hasExecutor,
                 enabled: enabled,
                 skillMode: skillMode,
                 cliCommand: cliCommand,
-                body: body,
+
+                // ===== 路径 =====
                 dir: getSkillsDirPath() + '/' + dirName,
                 dirName: dirName
+
+                // 注意：不存储 body（渐进披露：Level 1 按需加载）
             };
 
             skills.push(skill);
             const tag = skill.hasExecutor ? '(可执行, mode: ' + skill.skillMode + ')' : '(参考文档)';
+            console.log('[SkillLoader] ✓ ' + dirName + ' ' + tag +
+                (warnings.length > 0 ? ' [' + warnings.length + ' warnings]' : ' [合规]'));
         } catch (e) {
-            console.error('[SkillLoader] 加载 skill 失败:', name, e);
+            console.error('[SkillLoader] 加载 skill 失败:', dirName, e);
         }
     }
 
     scannedSkills = skills;
+    console.log('[SkillLoader] 扫描完成：共 ' + skills.length + ' 个 skill（' +
+        skills.filter(function(s) { return s.hasExecutor; }).length + ' 可执行, ' +
+        skills.filter(function(s) { return !s.hasExecutor; }).length + ' 参考文档）');
     return skills;
 }
 
+// ==================== 渐进披露：按需加载 ====================
+
+/**
+ * Level 1: 加载指定 skill 的完整 SKILL.md body
+ * 遵循 agentskills.io：仅在 skill 被激活时加载（< 5000 tokens 推荐）
+ *
+ * @param {string} skillName - skill 名称（即目录名）
+ * @returns {string|null} SKILL.md body 内容（不含 YAML 头），失败返回 null
+ */
+function loadSkillBody(skillName) {
+    if (!window.AndroidBridge || typeof window.AndroidBridge.readSkillFile !== 'function') {
+        console.warn('[SkillLoader] readSkillFile 不可用');
+        return null;
+    }
+    const content = window.AndroidBridge.readSkillFile(skillName);
+    if (!content) return null;
+    const { body } = parseSkillMd(content);
+    return body || '';
+}
+
+/**
+ * Level 2: 加载 skill 目录下指定资源文件
+ * 遵循 agentskills.io：scripts/references/assets 下的文件按需加载
+ *
+ * @param {string} skillName - skill 名称
+ * @param {string} relativePath - 相对路径（如 "references/REFERENCE.md" 或 "scripts/extract.py"）
+ * @returns {string|null} 文件内容，失败返回 null
+ */
+function loadSkillResource(skillName, relativePath) {
+    if (!window.AndroidBridge || typeof window.AndroidBridge.readSkillDirFile !== 'function') {
+        console.warn('[SkillLoader] readSkillDirFile 不可用');
+        return null;
+    }
+    // 安全检查：防止路径穿越
+    const safePath = relativePath.replace(/\.\./g, '').replace(/[\/\\]+/g, '/').replace(/^\/+/, '');
+    if (!safePath) return null;
+    const content = window.AndroidBridge.readSkillDirFile(skillName, safePath);
+    return content || null;
+}
+
+// ==================== 工具定义（Level 0 → AI function calling） ====================
+
 /**
  * 获取所有 skill 的工具定义（供 getToolDefinitions 调用）
- * 只返回有 executor 的 skill（即有 execute.sh 或指定了 runtime）
- * @returns {Array} tools 数组
+ * 只返回有 executor 的 skill
+ * 遵循 agentskills.io：description 中附带 license/compatibility/metadata
+ *
+ * @returns {Array} OpenAI function calling 格式的工具数组
  */
 function getSkillToolDefinitions() {
     console.log('[SkillLoader] getSkillToolDefinitions 被调用, scannedSkills:', scannedSkills.length, '个');
-    console.log('[SkillLoader] scannedSkills:', JSON.stringify(scannedSkills.map(function(s) { return { name: s.name, hasExecutor: s.hasExecutor, skillMode: s.skillMode, enabled: s.enabled }; })));
-    var result = scannedSkills
-        .filter(skill => skill.hasExecutor && skill.enabled !== false && (skill.skillMode === 'parameters' || skill.skillMode === 'cli'))
-        .map(skill => {
+    console.log('[SkillLoader] scannedSkills:', JSON.stringify(scannedSkills.map(function(s) {
+        return { name: s.name, hasExecutor: s.hasExecutor, skillMode: s.skillMode, enabled: s.enabled };
+    })));
+
+    return scannedSkills
+        .filter(function(skill) {
+            return skill.hasExecutor && skill.enabled !== false &&
+                   (skill.skillMode === 'parameters' || skill.skillMode === 'cli');
+        })
+        .map(function(skill) {
             console.log('[SkillLoader] 注册工具:', skill.name, 'mode:', skill.skillMode);
+
+            // 构建增强的 description（含 agentskills.io 元数据）
+            var enhancedDesc = skill.description;
+            if (skill.compatibility) {
+                enhancedDesc += '\n\n兼容性：' + skill.compatibility;
+            }
+            if (skill.license) {
+                enhancedDesc += '\n许可证：' + skill.license;
+            }
+            if (skill.metadata && typeof skill.metadata === 'object' && Object.keys(skill.metadata).length > 0) {
+                enhancedDesc += '\n元数据：' + JSON.stringify(skill.metadata);
+            }
+
             if (skill.skillMode === 'parameters') {
                 // 模式 A：结构化参数，AI 传 JSON 对象
                 return {
                     type: 'function',
                     function: {
                         name: skill.name,
-                        description: skill.description,
+                        description: enhancedDesc,
                         parameters: skill.parameters
                     }
                 };
@@ -411,7 +559,7 @@ function getSkillToolDefinitions() {
                     type: 'function',
                     function: {
                         name: skill.name,
-                        description: skill.description + '\n\n用法：直接传入要执行的命令行参数。\n例如：search "量子计算" --max_results 5',
+                        description: enhancedDesc + '\n\n用法：直接传入要执行的命令行参数（不包含脚本路径，只传子命令和选项）。\n例如：search "量子计算" --max_results 5',
                         parameters: {
                             type: 'object',
                             properties: {
@@ -426,9 +574,52 @@ function getSkillToolDefinitions() {
                 };
             }
         });
-    console.log('[SkillLoader] getSkillToolDefinitions 返回:', result.length, '个工具');
-    return result;
 }
+
+/**
+ * 构建所有 skill 的统一索引（供 system prompt 使用）
+ * 遵循 agentskills.io Level 0：可执行 + 参考文档同列，仅 name + 简短描述
+ *
+ * @returns {string} 索引文本
+ */
+function buildAllSkillsIndex() {
+    var all = scannedSkills.filter(function(s) { return s.enabled !== false; });
+    if (all.length === 0) return '';
+
+    var execs = all.filter(function(s) { return s.hasExecutor; });
+    var refs = all.filter(function(s) { return !s.hasExecutor; });
+
+    var lines = ['## Skills 索引（Level 0）', '',
+        '可执行 skill 已注册为工具可直接调用，参考文档需用 read_file 读取 SKILL.md：', ''];
+
+    if (execs.length > 0) {
+        lines.push('### 🔧 可执行工具');
+        lines.push('');
+        execs.forEach(function(s) {
+            var desc = s.description || '';
+            if (desc.length > 120) desc = desc.substring(0, 120) + '...';
+            lines.push('- **' + s.name + '** (' + s.skillMode + '): ' + desc);
+        });
+        lines.push('');
+    }
+
+    if (refs.length > 0) {
+        lines.push('### 📖 参考文档');
+        lines.push('');
+        refs.forEach(function(s) {
+            var desc = s.description || '';
+            if (desc.length > 120) desc = desc.substring(0, 120) + '...';
+            lines.push('- **' + s.name + '**: ' + desc);
+            lines.push('  路径: ' + s.dir + '/SKILL.md');
+            if (s.hasReferences) lines.push('  (含 references/)');
+            if (s.hasAssets) lines.push('  (含 assets/)');
+        });
+    }
+
+    return lines.join('\n');
+}
+
+// ==================== 执行 ====================
 
 /**
  * 执行指定的 skill
@@ -437,7 +628,7 @@ function getSkillToolDefinitions() {
  * @returns {Promise<string|null>} 执行结果，null 表示不是 skill 工具
  */
 async function executeSkill(toolName, args) {
-    const skill = scannedSkills.find(s => s.name === toolName);
+    const skill = scannedSkills.find(function(s) { return s.name === toolName; });
     if (!skill) return null;
     if (!skill.hasExecutor) return null;  // 参考文档类 skill，不可执行
 
@@ -450,12 +641,12 @@ async function executeSkill(toolName, args) {
             return '⚠️ Skill 缺少 CLI 命令配置（runtime.conf 中未找到 Command 字段）';
         }
         const cmdArgs = (args && args.command) || '';
-        command = `${skill.cliCommand} ${cmdArgs}`;
+        command = skill.cliCommand + ' ' + cmdArgs;
     } else {
         // parameters 模式：传 JSON 给 execute.sh
         const argsJson = JSON.stringify(args || {});
         const scriptPath = skill.dir + '/execute.sh';
-        command = `sh "${scriptPath}" '${argsJson.replace(/'/g, "'\\''")}'`;
+        command = 'sh "' + scriptPath + '" \'' + argsJson.replace(/'/g, "'\\''") + '\'';
     }
 
     // 所有 skill 执行默认走 Termux 通道（Android 系统没有 python/node 等运行时）
@@ -475,10 +666,10 @@ async function executeSkill(toolName, args) {
 async function executeViaBuiltin(command) {
     const callbackId = 'skill_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 
-    return new Promise((resolve) => {
+    return new Promise(function(resolve) {
         let resolved = false;
 
-        window._onLocalCommandResult = (id, result) => {
+        window._onLocalCommandResult = function(id, result) {
             if (id !== callbackId || resolved) return;
             resolved = true;
             delete window._onLocalCommandResult;
@@ -488,7 +679,7 @@ async function executeViaBuiltin(command) {
         window.AndroidBridge.executeLocalCommandAsync(command, 60, callbackId);
 
         // 超时保护
-        setTimeout(() => {
+        setTimeout(function() {
             if (resolved) return;
             resolved = true;
             delete window._onLocalCommandResult;
@@ -497,40 +688,41 @@ async function executeViaBuiltin(command) {
     });
 }
 
+// ==================== Termux 回调基础设施（模块加载时初始化，所有模块共享）====================
+if (!window._termuxCallbacks) {
+    window._termuxCallbacks = {};
+}
+if (!window._onTermuxResult) {
+    window._onTermuxResult = function(cbId, data) {
+        var cb = window._termuxCallbacks[cbId];
+        if (cb) {
+            delete window._termuxCallbacks[cbId];
+            cb(typeof data === 'string' ? data : JSON.stringify(data));
+        }
+    };
+}
+
 /**
  * 通过 Termux 执行命令
  */
 async function executeViaTermux(command, workdir) {
-    // 确保回调注册表存在
-    if (!window._termuxCallbacks) {
-        window._termuxCallbacks = {};
-        window._onTermuxResult = function(cbId, data) {
-            const cb = window._termuxCallbacks[cbId];
-            if (cb) {
-                delete window._termuxCallbacks[cbId];
-                cb(typeof data === 'string' ? data : JSON.stringify(data));
-            }
-        };
-    }
-
-    return new Promise((resolve) => {
+    return new Promise(function(resolve) {
         let resolved = false;
 
-        // 使用 Native 返回的 callbackId，确保回调能匹配
         const callbackId = window.AndroidBridge.runTermuxCommand(command, workdir || '', 60);
         if (!callbackId) {
             resolve('⚠️ Termux 命令发送失败');
             return;
         }
 
-        window._termuxCallbacks[callbackId] = (result) => {
+        window._termuxCallbacks[callbackId] = function(result) {
             if (resolved) return;
             resolved = true;
             resolve(formatSkillResult(result));
         };
 
         // 超时保护
-        setTimeout(() => {
+        setTimeout(function() {
             if (resolved) return;
             resolved = true;
             delete window._termuxCallbacks[callbackId];
@@ -558,13 +750,14 @@ function formatSkillResult(raw) {
         }
         return parsed.output || parsed.stdout || raw;
     } catch (e) {
-        // 不是 JSON，直接返回原始文本
         return typeof raw === 'string' ? raw : JSON.stringify(raw);
     }
 }
 
+// ==================== 重新加载 ====================
+
 /**
- * 重新加载所有 skill（供 AI 调用）
+ * 重新加载所有 skill（供 AI 调用或数据目录变更后刷新）
  */
 async function reloadSkills() {
     console.log('[SkillLoader] 重新加载所有 skill...');
@@ -579,18 +772,24 @@ async function reloadSkills() {
  * 在 app.js 初始化完成后调用
  */
 async function initSkillLoader() {
-    console.log('[SkillLoader] 初始化 Skill 系统...');
+    console.log('[SkillLoader] 初始化 Skill 系统（agentskills.io 兼容模式）...');
     try {
         await scanSkills();
-        console.log('[SkillLoader] 加载完成，共 ' + scannedSkills.length + ' 个 skill');
+        const execCount = scannedSkills.filter(function(s) { return s.hasExecutor; }).length;
+        const refCount = scannedSkills.filter(function(s) { return !s.hasExecutor; }).length;
+        console.log('[SkillLoader] 加载完成：' + scannedSkills.length + ' 个 skill（' +
+            execCount + ' 可执行, ' + refCount + ' 参考文档）');
     } catch (e) {
         console.error('[SkillLoader] 初始化失败:', e);
     }
 }
 
 // 模块加载时自动初始化
-console.log('[SkillLoader] 模块已加载，开始自动初始化...');
+console.log('[SkillLoader] 模块已加载（agentskills.io 兼容），开始自动初始化...');
 initSkillLoader();
 
-// 暴露重载函数供外部调用（如修改数据目录前缀后刷新）
+// 暴露函数供外部调用
 window.reloadSkills = reloadSkills;
+window.loadSkillBody = loadSkillBody;
+window.loadSkillResource = loadSkillResource;
+window.buildAllSkillsIndex = buildAllSkillsIndex;
