@@ -10978,7 +10978,6 @@ function buildRequestBody(systemPrompt = null, targetMessage = null, knowledgeCo
 
     if (currentAIProvider === 'deepseek') {
         // DeepSeek 使用 thinking.type 参数控制深度思考，reasoning_effort 控制思考强度
-        // 注意：开启 tools 时需关闭 thinking（DeepSeek 限制）
         const _useTools = typeof isToolCallingActive === 'function' && isToolCallingActive();
         return mergeCustomRequestBody({
             model: selectedModel,
@@ -10988,9 +10987,9 @@ function buildRequestBody(systemPrompt = null, targetMessage = null, knowledgeCo
             top_p: topP,
             stream: streamOutputEnabled,
             thinking: {
-                type: (deepThinkingEnabled && !_useTools) ? "enabled" : "disabled"
+                type: deepThinkingEnabled ? "enabled" : "disabled"
             },
-            ...((deepThinkingEnabled && !_useTools) && {
+            ...(deepThinkingEnabled && {
                 reasoning_effort: deepseekReasoningEffort
             }),
             ...(_useTools && typeof getToolDefinitions === 'function' && getToolDefinitions() ? { tools: getToolDefinitions() } : {})
