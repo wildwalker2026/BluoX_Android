@@ -10876,6 +10876,7 @@ function buildRequestBody(systemPrompt = null, targetMessage = null, knowledgeCo
         systemContent += '\n\n你运行在 Android 手机端（小蓝AI盒子 App）。';
         const downloadsPath = (window.AndroidBridge && window.AndroidBridge.getDownloadsPath) ? window.AndroidBridge.getDownloadsPath() : 'Downloads';
         systemContent += `\n\n## 笔记本\n笔记存储在 ${downloadsPath}/Bluox/Notes 目录中。用户可以通过笔记本功能记录信息，你也可以通过工具读写笔记。`;
+        systemContent += `\n\n## Skills\nSkills 存储在 ${downloadsPath}/Bluox/Skills 目录中，每个子目录是一个 skill。Skill 有两种类型：\n1. **可执行工具**：目录下有 SKILL.md（含 YAML 头定义 name/description/parameters）和 execute.sh，会自动注册为工具供你调用。\n2. **参考文档**：目录下只有 SKILL.md（无 runtime/parameters 字段），你需要主动读取其内容作为参考。\n\n你可以用 read_file 或 list_directory 浏览 Skills 目录，了解当前可用的 skill。`;
         systemContent += '\n\n## 数学计算工具\n你可以使用 math_calculate 工具进行精确数学计算。支持：四则运算、三角函数、求导（derivative）、方程求解（solve）、定积分（integrate）、矩阵运算、行列式（det）、统计、单位换算、复数运算等。遇到数学问题时，务必使用此工具确保结果精确。';
         systemContent += '\n\n## 数据可视化工具\n你可以使用 generate_chart 工具生成数据可视化图表。传入 ECharts option 配置即可生成折线图、柱状图、饼图、散点图、雷达图、热力图等。工具会返回 chartId，你需要在回复文本中用 [chart:chartId] 嵌入图表，图表会直接展示给用户。';
         

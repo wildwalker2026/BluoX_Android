@@ -409,6 +409,9 @@
     function openNotebook() {
         if (!notebookModal) return;
         if (batchMode) exitBatchMode();
+        // 每次打开都重置到笔记视图
+        _showingSkills = false;
+        setActiveTab('notes');
         // 点击笔记时触发权限申请（复用发送消息时的权限弹窗流程）
         if (window.AndroidBridge && window.AndroidBridge.requestAdPermissionNow) {
             window.AndroidBridge.requestAdPermissionNow();
@@ -724,6 +727,168 @@
         });
     }
 
+    // ---------- 笔记/Skills 标签切换 ----------
+
+    var notesTabBtn = document.getElementById('notesTabBtn');
+    var skillsTabBtn = document.getElementById('skillsTabBtn');
+    var _showingSkills = false;
+
+    function setActiveTab(tab) {
+        if (notesTabBtn) {
+            notesTabBtn.classList.toggle('tab-btn-active', tab === 'notes');
+        }
+        if (skillsTabBtn) {
+            skillsTabBtn.classList.toggle('tab-btn-active', tab === 'skills');
+        }
+    }
+
+    function switchToNotes() {
+        if (!_showingSkills) return;
+        _showingSkills = false;
+        setActiveTab('notes');
+        if (!notebookList) return;
+
+        // 清空并重新渲染笔记列表
+        notebookList.innerHTML = '';
+        // 重新添加新增按钮
+        var addBtn = document.createElement('button');
+        addBtn.className = 'dashed-add-btn';
+        addBtn.id = 'addNoteBtn';
+        addBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>新增笔记</span>';
+        addBtn.addEventListener('click', function () {
+            loadNotes().then(function (notes) {
+                var title = generateUniqueTitle(notes);
+                openEditView({ title: title, content: '' }, -1);
+            });
+        });
+        notebookList.appendChild(addBtn);
+
+        // 恢复笔记列表
+        loadNotes().then(function (notes) {
+            renderNoteList(notes);
+        });
+
+        // 恢复底部按钮
+        var getBtn = document.getElementById('notebookGetBtn');
+        if (getBtn) getBtn.style.display = '';
+    }
+
+    function renderSkillsList() {
+        _showingSkills = true;
+        setActiveTab('skills');
+        if (!notebookList) return;
+
+        // 隐藏底部按钮
+        var getBtn = document.getElementById('notebookGetBtn');
+        if (getBtn) getBtn.style.display = 'none';
+
+        // 清空列表，显示加载中
+        notebookList.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-secondary,#888);font-size:14px;">正在加载 Skills...</div>';
+
+        if (!window.AndroidBridge || typeof window.AndroidBridge.scanSkillsDir !== 'function') {
+            notebookList.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-secondary,#888);font-size:14px;">当前版本不支持 Skills</div>';
+            return;
+        }
+
+        try {
+            var json = window.AndroidBridge.scanSkillsDir();
+            var skillNames = JSON.parse(json);
+
+            // 清空列表（去掉加载中提示）
+            notebookList.innerHTML = '';
+
+            if (!skillNames || skillNames.length === 0) {
+                notebookList.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-secondary,#888);font-size:14px;">暂无 Skill<br><span style="font-size:12px;">请将 skill 放入 Downloads/Bluox/Skills/ 目录</span></div>';
+                return;
+            }
+
+            for (var i = 0; i < skillNames.length; i++) {
+                var name = skillNames[i];
+                var skillMd = window.AndroidBridge.readSkillFile(name);
+                var hasExecutor = skillMd && skillMd.indexOf('runtime:') !== -1;
+                var displayName = name;
+                var desc = '';
+
+                if (skillMd) {
+                    var nameMatch = skillMd.match(/^name:\s*(\S+)/m);
+                    if (nameMatch) displayName = nameMatch[1];
+                    var descMatch = skillMd.match(/^description:\s*(.+)/m);
+                    if (descMatch) {
+                        desc = descMatch[1].trim();
+                        if (desc.length > 60) desc = desc.substring(0, 60) + '...';
+                    }
+                }
+
+                var tag = hasExecutor
+                    ? '<span style="font-size:10px;color:#4caf50;border:1px solid #4caf50;border-radius:2px;padding:0 4px;margin-left:6px;line-height:1.4;display:inline-block;">可执行</span>'
+                    : '<span style="font-size:10px;color:#ff9800;border:1px solid #ff9800;border-radius:2px;padding:0 4px;margin-left:6px;line-height:1.4;display:inline-block;">参考</span>';
+
+                // 复用 agent-item 样式
+                var div = document.createElement('div');
+                div.className = 'agent-item';
+
+                var infoDiv = document.createElement('div');
+                infoDiv.className = 'agent-item-info';
+                infoDiv.innerHTML =
+                    '<span class="agent-item-name">' + escapeHtml(displayName) + tag + '</span>' +
+                    (desc ? '<span class="agent-item-desc">' + escapeHtml(desc) + '</span>' : '');
+                div.appendChild(infoDiv);
+
+                // 点击打开 SKILL.md 内容
+                div.addEventListener('click', function (n, md) {
+                    return function () {
+                        if (md) {
+                            var body = md.replace(/^---[\s\S]*?---\n?/, '').trim();
+                            if (!body) body = md;
+                            if (typeof openModalWithFade === 'function') {
+                                var previewModal = document.getElementById('notebookEditModal');
+                                if (previewModal) {
+                                    var titleEl = document.getElementById('notebookEditTitle');
+                                    if (titleEl) titleEl.textContent = 'Skill: ' + n;
+                                    var contentEl = document.getElementById('notebookContent');
+                                    if (contentEl) {
+                                        contentEl.innerHTML = '<pre style="white-space:pre-wrap;font-size:13px;line-height:1.6;margin:0;">' + escapeHtml(body) + '</pre>';
+                                    }
+                                    var textareaEl = document.getElementById('notebookTextarea');
+                                    if (textareaEl) textareaEl.style.display = 'none';
+                                    var syncBtn = document.getElementById('notebookEditSyncBtn');
+                                    if (syncBtn) syncBtn.style.display = 'none';
+                                    openModalWithFade(previewModal);
+                                }
+                            }
+                        }
+                    };
+                }(displayName, skillMd));
+
+                notebookList.appendChild(div);
+            }
+        } catch (e) {
+            notebookList.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-secondary,#888);">加载失败: ' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    // 笔记按钮点击
+    if (notesTabBtn) {
+        notesTabBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            switchToNotes();
+        });
+    }
+
+    // Skills 按钮点击
+    if (skillsTabBtn) {
+        skillsTabBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (_showingSkills) {
+                switchToNotes();
+            } else {
+                renderSkillsList();
+            }
+        });
+    }
+
     // 暴露给外部调用
     window.closeNotebookEditModal = closeEditModal;
+    window.switchToSkills = switchToSkills;
+    window.switchToNotes = switchToNotes;
 })();

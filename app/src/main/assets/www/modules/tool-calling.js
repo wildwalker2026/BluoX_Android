@@ -120,6 +120,14 @@ function getToolDefinitions() {
         }
     });
 
+    // 追加动态加载的 skill 工具
+    if (typeof getSkillToolDefinitions === 'function') {
+        const skillTools = getSkillToolDefinitions();
+        if (skillTools && skillTools.length > 0) {
+            tools.push(...skillTools);
+        }
+    }
+
     // 文件操作类工具（expertModeEnabled 控制）
     if (expertModeEnabled) {
         tools.push(
@@ -2833,6 +2841,15 @@ async function executeToolCall(tc) {
         }
     }
 
+    // ==================== Skill 工具路由 ====================
+    // 先检查是否是 skill 工具（动态加载的）
+    if (typeof executeSkill === 'function') {
+        const skillResult = await executeSkill(tc.function.name, args);
+        if (skillResult !== null) {
+            return skillResult;
+        }
+    }
+
     // execute_command：本地优先，PC为可选
     if (tc.function.name === 'execute_command') {
         try {
@@ -4137,6 +4154,11 @@ function initToolCalling() {
 
     // 更新 UI 显示
     updateToolCallingUI();
+
+    // 初始化 Skill 系统
+    if (typeof initSkillLoader === 'function') {
+        initSkillLoader();
+    }
 }
 
 console.log('[ToolCalling] 模块已加载（百度+必应本地搜索，无需 API Key）');

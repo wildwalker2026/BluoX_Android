@@ -1820,8 +1820,11 @@
     <!-- 笔记列表弹窗 -->
     <div class="modal-overlay" id="notebookModal">
         <div class="modal agent-modal fullscreen-modal">
-            <div class="modal-header">
-                <h2>笔记</h2>
+            <div class="modal-header" style="display:flex;align-items:center;">
+                <button id="notesTabBtn" class="tab-btn tab-btn-active">笔记</button>
+                <span style="color:var(--text-secondary,#555);font-size:14px;">|</span>
+                <button id="skillsTabBtn" class="tab-btn">Skills</button>
+                <div style="flex:1;"></div>
                 <button class="modal-close" id="closeNotebook">&times;</button>
             </div>
             <div class="modal-body">
@@ -1868,6 +1871,7 @@
     <script src="modules/mcp-client.js"></script>
     <script src="modules/tool-calling.js"></script>
     <script src="modules/responses-tool-calling.js"></script>
+    <script src="modules/skill-loader.js"></script>
     <script src="modules/notebook.js"></script>
 </body>
 

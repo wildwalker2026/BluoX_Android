@@ -4629,6 +4629,70 @@ public class MainActivity extends Activity {
                 return terminalExecutor.listAvailableCommands();
             }
 
+            // ========== Skill 系统 ==========
+
+            /**
+             * 扫描 Skills 目录，返回所有 skill 子目录名列表
+             * @return JSON 数组 ["skill-name-1", "skill-name-2", ...]
+             */
+            @JavascriptInterface
+            public String scanSkillsDir() {
+                try {
+                    File skillsDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Bluox/Skills");
+                    if (!skillsDir.exists() || !skillsDir.isDirectory()) {
+                        return "[]";
+                    }
+                    File[] entries = skillsDir.listFiles();
+                    if (entries == null) return "[]";
+                    org.json.JSONArray arr = new org.json.JSONArray();
+                    for (File f : entries) {
+                        if (f.isDirectory() && !f.getName().startsWith(".")) {
+                            // 只包含有 SKILL.md 的目录
+                            File skillMd = new File(f, "SKILL.md");
+                            if (skillMd.exists() && skillMd.isFile()) {
+                                arr.put(f.getName());
+                            }
+                        }
+                    }
+                    return arr.toString();
+                } catch (Exception e) {
+                    Log.e("Skill", "扫描Skills目录失败: " + e.getMessage());
+                    return "[]";
+                }
+            }
+
+            /**
+             * 读取指定 skill 的 SKILL.md 文件内容
+             * @param skillName skill 目录名
+             * @return SKILL.md 文件内容，失败返回空字符串
+             */
+            @JavascriptInterface
+            public String readSkillFile(String skillName) {
+                try {
+                    if (skillName == null || skillName.isEmpty()) return "";
+                    // 安全检查：防止路径穿越
+                    String safeName = skillName.replaceAll("[\\/:*?\"<>|]", "_").trim();
+                    if (safeName.isEmpty()) return "";
+                    File skillDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Bluox/Skills/" + safeName);
+                    File skillMd = new File(skillDir, "SKILL.md");
+                    if (!skillMd.exists() || !skillMd.isFile()) return "";
+                    java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(new java.io.FileInputStream(skillMd), "UTF-8")
+                    );
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (sb.length() > 0) sb.append("\n");
+                        sb.append(line);
+                    }
+                    reader.close();
+                    return sb.toString();
+                } catch (Exception e) {
+                    Log.e("Skill", "读取SKILL.md失败: " + e.getMessage());
+                    return "";
+                }
+            }
+
         }, "AndroidBridge");
         
         Log.d("MainActivity", "JavaScript 接口已设置");
