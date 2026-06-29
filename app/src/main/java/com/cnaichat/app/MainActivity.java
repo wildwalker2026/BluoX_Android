@@ -152,6 +152,10 @@ public class MainActivity extends Activity {
     // APK 打包时的 Web 版本号（与 config.xml 保持一致）
     private static final String ASSETS_WEB_VERSION = "1.3.12";
 
+    // 数据目录前缀配置（完整绝对路径，自动派生 Notes/ 和 Skills/ 子目录）
+    private static final String DEFAULT_DATA_PREFIX = "/storage/emulated/0/Download/Bluox";
+    private static final String KEY_DATA_PREFIX = "data_prefix";
+
     // 广告 SDK 相关
     private static final String CSJ_SPLASH_AD_CODE_ID = "103980017"; // 穿山甲开屏广告代码位ID
     private boolean isAdSdkInitialized = false;
@@ -1470,6 +1474,36 @@ public class MainActivity extends Activity {
         applyStatusBarAppearance(currentThemeColor);
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  数据目录前缀管理（在通用设置中自定义，自动派生 Notes/ 和 Skills/ 子目录）
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * 获取当前数据目录前缀（完整绝对路径，如 /storage/emulated/0/Download/Bluox）
+     */
+    private String getDataPrefix() {
+        SharedPreferences prefs = getSharedPreferences("cnai_prefs", MODE_PRIVATE);
+        String prefix = prefs.getString(KEY_DATA_PREFIX, DEFAULT_DATA_PREFIX);
+        if (prefix == null || prefix.trim().isEmpty()) {
+            prefix = DEFAULT_DATA_PREFIX;
+        }
+        return prefix.trim();
+    }
+
+    /**
+     * 获取笔记存储目录 = 前缀 + "/Notes"
+     */
+    private File getNotesDir() {
+        return new File(getDataPrefix() + "/Notes");
+    }
+
+    /**
+     * 获取 Skills 目录 = 前缀 + "/Skills"
+     */
+    private File getSkillsDir() {
+        return new File(getDataPrefix() + "/Skills");
+    }
+
     /**
      * 内部方法：初始化广告 SDK（GDT 已停用，仅穿山甲）
      * 参考 demo 做法：同步检查一次，不 ready 就直接放弃
@@ -2526,9 +2560,44 @@ public class MainActivity extends Activity {
             }
 
             @JavascriptInterface
+            public void setDataPrefix(String prefix) {
+                try {
+                    SharedPreferences prefs = getSharedPreferences("cnai_prefs", MODE_PRIVATE);
+                    SharedPreferences.Editor editor = prefs.edit();
+                    if (prefix == null || prefix.trim().isEmpty()) {
+                        editor.remove(KEY_DATA_PREFIX);
+                    } else {
+                        editor.putString(KEY_DATA_PREFIX, prefix.trim());
+                    }
+                    editor.commit();
+                    Log.d("DataDir", "数据目录前缀已更新: " + (prefix != null ? prefix : "默认"));
+                } catch (Exception e) {
+                    Log.e("DataDir", "设置数据目录前缀失败: " + e.getMessage());
+                }
+            }
+
+            @JavascriptInterface
+            public String getDataPrefix() {
+                try {
+                    return MainActivity.this.getDataPrefix();
+                } catch (Exception e) {
+                    return DEFAULT_DATA_PREFIX;
+                }
+            }
+
+            @JavascriptInterface
+            public String getSkillsDirPath() {
+                try {
+                    return getSkillsDir().getAbsolutePath();
+                } catch (Exception e) {
+                    return "";
+                }
+            }
+
+            @JavascriptInterface
             public void saveNoteFile(String title, String content) {
                 try {
-                    File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Bluox/Notes");
+                    File dir = getNotesDir();
                     if (!dir.exists()) dir.mkdirs();
                     String safeName = title.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
                     if (safeName.isEmpty()) safeName = "未命名";
@@ -2547,7 +2616,7 @@ public class MainActivity extends Activity {
             @JavascriptInterface
             public void deleteNoteFile(String title) {
                 try {
-                    File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Bluox/Notes");
+                    File dir = getNotesDir();
                     if (!dir.exists()) dir.mkdirs();
                     String safeName = title.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
                     if (safeName.isEmpty()) safeName = "未命名";
@@ -2569,7 +2638,7 @@ public class MainActivity extends Activity {
             @JavascriptInterface
             public void renameNoteFile(String oldTitle, String newTitle) {
                 try {
-                    File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Bluox/Notes");
+                    File dir = getNotesDir();
                     String oldSafeName = oldTitle.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
                     if (oldSafeName.isEmpty()) oldSafeName = "未命名";
                     String newSafeName = newTitle.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
@@ -2619,16 +2688,16 @@ public class MainActivity extends Activity {
             @JavascriptInterface
             public String readAllNoteFiles() {
                 try {
-                    File bluoxDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Bluox/Notes");
                     File blueBoxDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "BlueBox/Notes");
-                    // 迁移：把 BlueBox/Notes 的文件移到 Bluox/Notes
-                    if (blueBoxDir.exists() && blueBoxDir.isDirectory()) {
-                        if (!bluoxDir.exists()) bluoxDir.mkdirs();
+                    File dir = getNotesDir();
+                    // 迁移：把 BlueBox/Notes 的文件移到当前笔记目录
+                    if (blueBoxDir.exists() && blueBoxDir.isDirectory() && !blueBoxDir.getAbsolutePath().equals(dir.getAbsolutePath())) {
+                        if (!dir.exists()) dir.mkdirs();
                         File[] oldFiles = blueBoxDir.listFiles();
                         if (oldFiles != null) {
                             for (File oldFile : oldFiles) {
                                 if (oldFile.isFile()) {
-                                    File newFile = new File(bluoxDir, oldFile.getName());
+                                    File newFile = new File(dir, oldFile.getName());
                                     if (!newFile.exists()) oldFile.renameTo(newFile);
                                 }
                             }
@@ -2636,7 +2705,6 @@ public class MainActivity extends Activity {
                         // 迁移完后删除旧目录
                         blueBoxDir.delete();
                     }
-                    File dir = bluoxDir;
                     if (!dir.exists() || !dir.isDirectory()) return "[]";
                     File[] files = dir.listFiles();
                     if (files == null) return "[]";
@@ -3907,8 +3975,8 @@ public class MainActivity extends Activity {
             private void backupFile(String path) throws Exception {
                 File src = new File(path);
                 if (!src.exists() || src.isDirectory()) return;
-                // 备份目录：Download/Bluox/file_backup/
-                File backupDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Bluox/file_backup");
+                // 备份目录：数据前缀/file_backup/
+                File backupDir = new File(getDataPrefix() + "/file_backup");
                 if (!backupDir.exists() && !backupDir.mkdirs()) {
                     throw new Exception("无法创建备份目录: " + backupDir.getAbsolutePath());
                 }
@@ -4638,7 +4706,7 @@ public class MainActivity extends Activity {
             @JavascriptInterface
             public String scanSkillsDir() {
                 try {
-                    File skillsDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Bluox/Skills");
+                    File skillsDir = getSkillsDir();
                     if (!skillsDir.exists() || !skillsDir.isDirectory()) {
                         return "[]";
                     }
@@ -4677,7 +4745,7 @@ public class MainActivity extends Activity {
                     // 安全检查：防止路径穿越
                     String safeName = skillName.replaceAll("[\\/:*?\"<>|]", "_").trim();
                     if (safeName.isEmpty()) return "";
-                    File skillDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Bluox/Skills/" + safeName);
+                    File skillDir = new File(getSkillsDir(), safeName);
                     File skillMd = new File(skillDir, "SKILL.md");
                     if (!skillMd.exists() || !skillMd.isFile()) return "";
                     java.io.BufferedReader reader = new java.io.BufferedReader(
@@ -4712,7 +4780,7 @@ public class MainActivity extends Activity {
                     String safeName = skillName.replaceAll("[\\/:*?\"<>|]", "_").trim();
                     String safeFile = fileName.replaceAll("[\\/:*?\"<>|]", "_").trim();
                     if (safeName.isEmpty() || safeFile.isEmpty()) return "";
-                    File skillDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Bluox/Skills/" + safeName);
+                    File skillDir = new File(getSkillsDir(), safeName);
                     File targetFile = new File(skillDir, safeFile);
                     if (!targetFile.exists() || !targetFile.isFile()) return "";
                     java.io.BufferedReader reader = new java.io.BufferedReader(

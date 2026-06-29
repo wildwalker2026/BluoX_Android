@@ -1762,9 +1762,11 @@ function writePlanLog(logText) {
     try {
         if (!window.AndroidBridge || typeof window.AndroidBridge.appendToFile !== 'function') return;
         const downloadPath = window.AndroidBridge.getDownloadsPath ? window.AndroidBridge.getDownloadsPath() : '/storage/emulated/0/Download';
+        const dataPrefix = (window.AndroidBridge && window.AndroidBridge.getDataPrefix) ? window.AndroidBridge.getDataPrefix() : '';
+        const effectivePrefix = dataPrefix || downloadPath + '/Bluox';
         const now = new Date();
         const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-        const logPath = `${downloadPath}/Bluox/Notes/日志_${dateStr}.md`;
+        const logPath = `${effectivePrefix}/Notes/日志_${dateStr}.md`;
         const dateDisplay = `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}`;
         const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
         // 检查文件是否存在，不存在则先写标题行

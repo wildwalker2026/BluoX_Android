@@ -903,7 +903,11 @@
     if (skillsTabBtn) {
         skillsTabBtn.addEventListener('click', function (e) {
             e.stopPropagation();
-            renderSkillsList();
+            if (_showingSkills) {
+                switchToNotes();
+            } else {
+                renderSkillsList();
+            }
         });
     }
 

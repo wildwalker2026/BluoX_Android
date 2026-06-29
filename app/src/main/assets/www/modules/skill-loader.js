@@ -34,8 +34,17 @@
 /** 已扫描的 skill 列表 */
 let scannedSkills = [];
 
-/** Skills 目录路径 */
-const SKILLS_DIR = '/storage/emulated/0/Download/Bluox/Skills';
+/**
+ * 获取 Skills 目录路径（从 AndroidBridge 动态读取，由数据目录前缀决定）
+ * 如果桥接不可用则回退到默认路径
+ */
+function getSkillsDirPath() {
+    if (window.AndroidBridge && typeof window.AndroidBridge.getSkillsDirPath === 'function') {
+        var path = window.AndroidBridge.getSkillsDirPath();
+        if (path) return path;
+    }
+    return '/storage/emulated/0/Download/Bluox/Skills'; // 回退默认
+}
 
 /** 禁用的 skill 名称集合（持久化） */
 let disabledSkills = new Set();
@@ -359,7 +368,7 @@ async function scanSkills() {
                 skillMode: skillMode,
                 cliCommand: cliCommand,
                 body: body,
-                dir: SKILLS_DIR + '/' + dirName,
+                dir: getSkillsDirPath() + '/' + dirName,
                 dirName: dirName
             };
 
@@ -582,3 +591,6 @@ async function initSkillLoader() {
 // 模块加载时自动初始化
 console.log('[SkillLoader] 模块已加载，开始自动初始化...');
 initSkillLoader();
+
+// 暴露重载函数供外部调用（如修改数据目录前缀后刷新）
+window.reloadSkills = reloadSkills;

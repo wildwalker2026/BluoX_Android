@@ -65,6 +65,9 @@ public class TermuxBridge {
     // HTTP 命令服务器
     private static final String SERVER_URL = "http://127.0.0.1:8765";
     private static final String SERVER_SCRIPT = "/sdcard/Download/Bluox/termux_server.py";
+
+    // SharedPreferences key（与 MainActivity 保持一致）
+    private static final String KEY_DATA_PREFIX = "data_prefix";
     private static volatile Boolean serverAvailable = null;
     private static volatile long lastPingTime = 0;
     private static final long PING_CACHE_MS = 5000; // 5 秒内不重复 ping
@@ -87,6 +90,26 @@ public class TermuxBridge {
 
     public TermuxBridge(Context context) {
         this.context = context;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  动态路径（从 SharedPreferences 读取数据目录前缀）
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * 获取笔记目录路径（从 SharedPreferences 读取数据前缀 + "/Notes"）
+     */
+    private String getNotesDirPath() {
+        try {
+            android.content.SharedPreferences prefs = context.getSharedPreferences("cnai_prefs", Context.MODE_PRIVATE);
+            String prefix = prefs.getString(KEY_DATA_PREFIX, null);
+            if (prefix != null && !prefix.trim().isEmpty()) {
+                return prefix.trim() + "/Notes";
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "读取数据前缀失败: " + e.getMessage());
+        }
+        return "/sdcard/Download/Bluox/Notes";
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -277,7 +300,8 @@ public class TermuxBridge {
                 return;
             }
             // 生成唯一的进度文件名，传给 Python 和轮询器
-            String progressFile = PROGRESS_DIR + "/" + PROGRESS_PREFIX + callbackId + ".txt";
+            String notesDir = getNotesDirPath();
+            String progressFile = notesDir + "/" + PROGRESS_PREFIX + callbackId + ".txt";
             // 发送命令前清理自己的进度文件（如果有残留）
             cleanupProgressFile(progressFile);
             String result;
@@ -744,7 +768,7 @@ public class TermuxBridge {
         String actualWorkDir = workDir != null ? workDir : TERMUX_HOME;
 
         // 包装命令：输出重定向到文件 + 追加退出码 + 追加日志到笔记目录（按日）
-        String logDir = "/sdcard/Download/Bluox/Notes";
+        String logDir = getNotesDirPath();
         java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyyMMdd");
         String dateStr = sdf.format(new java.util.Date(ts));
         String logFile = logDir + "/termux_log_" + dateStr + ".txt";

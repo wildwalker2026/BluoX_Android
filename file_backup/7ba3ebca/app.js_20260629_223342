@@ -10425,7 +10425,7 @@ function saveFontSize() {
     applyMessageFontSize();
 }
 
-async function saveDataPrefix() {
+function saveDataPrefix() {
     dataPrefix = dataPrefixInput.value.trim();
     localStorage.setItem('cnai_data_prefix', dataPrefix);
     // 同步到 Android 端，使笔记和 Skills 使用新目录
@@ -10434,7 +10434,7 @@ async function saveDataPrefix() {
     }
     // 刷新 Skills 列表，避免缓存旧路径的数据
     if (window.reloadSkills) {
-        await window.reloadSkills();
+        window.reloadSkills();
     }
 }
 

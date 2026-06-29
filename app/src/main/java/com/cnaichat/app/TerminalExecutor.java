@@ -132,6 +132,14 @@ public class TerminalExecutor {
                         (result.isEmpty() ? "" : ",\"partial\":\"" + escapeJson(result) + "\"") + "}";
             }
 
+            // 命令失败时检测是否需要 Termux 环境
+            if (exitCode != 0 && !result.isEmpty()) {
+                String lowerResult = result.toLowerCase();
+                if (lowerResult.contains("inaccessible") || lowerResult.contains("not found") || lowerResult.contains("no such file")) {
+                    result = result + "\n\n该命令无效！改用 run_termux_command 工具！";
+                }
+            }
+
             return "{\"exitCode\":" + exitCode +
                     ",\"output\":\"" + escapeJson(result) + "\"" +
                     ",\"workDir\":\"" + escapeJson(homeDir.getAbsolutePath()) + "\"}";

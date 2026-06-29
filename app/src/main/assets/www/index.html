@@ -688,6 +688,14 @@
                     <input type="number" id="pageSizeInput" placeholder="默认 1000" min="20" max="5000" value="1000">
                     <small style="color: var(--text-secondary); font-size: 12px;">话题加载时一次性渲染的消息条数（20-5000），值越大加载越慢但显示越多</small>
                 </div>
+                <div class="form-group" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-color);">
+                    <label for="dataPrefixInput">数据目录前缀</label>
+                    <div style="display:flex;gap:8px;">
+                        <input type="text" id="dataPrefixInput" placeholder="默认: /storage/emulated/0/Download/Bluox" style="flex:1;">
+                        <button type="button" id="resetDataPrefixBtn" class="secondary-btn" style="padding:8px 12px;white-space:nowrap;flex-shrink:0;">恢复默认</button>
+                    </div>
+                    <small style="color: var(--text-secondary); font-size: 12px;">数据目录的完整绝对路径前缀，会自动派生 <code>前缀/Notes</code>（笔记）和 <code>前缀/Skills</code>（技能）子目录。修改后需重启应用生效。留空使用默认值 <code>/storage/emulated/0/Download/Bluox</code></small>
+                </div>
             </div>
         </div>
     </div>
