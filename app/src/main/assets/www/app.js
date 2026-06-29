@@ -9894,7 +9894,9 @@ chatContainer.addEventListener('click', (e) => {
         let contentHtml = '';
         contentHtml += `<div style="margin-bottom:12px;"><div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">工具</div><div style="font-size:14px;font-weight:600;color:var(--primary-color);">${escapeHtml(toolName)}</div></div>`;
         contentHtml += `<div style="margin-bottom:12px;"><div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">参数</div><pre style="font-size:12px;white-space:pre-wrap;word-break:break-all;margin:0;color:var(--text-primary);">${escapeHtml(JSON.stringify(toolArgs, null, 2))}</pre></div>`;
-        contentHtml += `<div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">结果</div><pre style="font-size:12px;white-space:pre-wrap;word-break:break-all;margin:0;color:var(--text-primary);max-height:400px;overflow-y:auto;">${escapeHtml(toolResult)}</pre></div>`;
+        // 检测结果是否为 git diff 格式，渲染为 diff 卡片
+        const resultHtml = renderToolResultAsDiff(toolResult);
+        contentHtml += `<div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">结果</div>${resultHtml}</div>`;
         contentHtml += `<button id="toolDetailCopyBtn" style="margin-top:16px;width:100%;padding:12px;border:1px solid var(--border-color);background:none;color:var(--text-primary);border-radius:8px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">${ICONS.copy}<span>复制详情</span></button>`;
         createBottomSheetPicker({
             title: '工具调用详情',
@@ -9903,6 +9905,20 @@ chatContainer.addEventListener('click', (e) => {
             customContent: `<div style="padding:12px 16px;">${contentHtml}</div>`
         }).show();
         setTimeout(() => {
+            // 绑定 diff 卡片展开/折叠
+            const diffCard = document.querySelector('.bs-panel-content .diff-card');
+            if (diffCard) {
+                const header = diffCard.querySelector('.diff-header');
+                if (header) {
+                    header.addEventListener('click', function() {
+                        diffCard.classList.toggle('expanded');
+                        const toggle = diffCard.querySelector('.diff-toggle');
+                        if (toggle) toggle.textContent = diffCard.classList.contains('expanded') ? '▼' : '▶';
+                        const body = diffCard.querySelector('.diff-body');
+                        if (body) body.style.display = diffCard.classList.contains('expanded') ? 'block' : 'none';
+                    });
+                }
+            }
             const copyBtn = document.getElementById('toolDetailCopyBtn');
             if (copyBtn) {
                 copyBtn.addEventListener('click', () => {
@@ -9933,6 +9949,194 @@ chatContainer.addEventListener('click', (e) => {
         }, 100);
     }
 });
+
+/**
+ * 检测文本是否为 git diff 格式
+ */
+function isGitDiff(text) {
+    if (!text || typeof text !== 'string') return false;
+    // git diff 以 "diff --git" 开头，或包含 "--- a/" 和 "+++ b/"
+    return text.includes('diff --git') || (text.includes('--- a/') && text.includes('+++ b/'));
+}
+
+/**
+ * 解析 git diff 文本为 diffData 格式
+ * @param {string} diffText - git diff 原始文本
+ * @returns {{lines: Array, stats: {added: number, removed: number}}} diffData
+ */
+function parseGitDiff(diffText) {
+    const lines = [];
+    let stats = { added: 0, removed: 0 };
+    if (!diffText) return { lines, stats };
+    
+    const rawLines = diffText.split('\n');
+    let currentFile = '';
+    let lineNumOld = 0;
+    let lineNumNew = 0;
+    let inHunk = false;
+    let oldLines = [];
+    let newLines = [];
+    
+    for (let i = 0; i < rawLines.length; i++) {
+        const line = rawLines[i];
+        
+        // diff --git a/xxx b/xxx
+        if (line.startsWith('diff --git ')) {
+            if (inHunk) {
+                // 结束上一个 hunk，flush
+                flushHunk();
+            }
+            inHunk = false;
+            currentFile = line.replace('diff --git ', '').replace(/^a\//, '').split(' b/')[1] || '';
+            // 添加文件头作为上下文
+            lines.push({ type: 'ctx', line: '', content: line });
+            continue;
+        }
+        
+        // index / --- / +++ 行
+        if (line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ')) {
+            if (line.startsWith('--- a/')) {
+                // 不额外添加
+            }
+            lines.push({ type: 'ctx', line: '', content: line });
+            continue;
+        }
+        
+        // @@ -a,b +c,d @@  hunk header
+        if (line.startsWith('@@')) {
+            if (inHunk) {
+                flushHunk();
+            }
+            inHunk = true;
+            oldLines = [];
+            newLines = [];
+            // 解析 @@ -oldStart,oldCount +newStart,newCount @@
+            const match = line.match(/@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/);
+            if (match) {
+                lineNumOld = parseInt(match[1], 10);
+                lineNumNew = parseInt(match[2], 10);
+            }
+            lines.push({ type: 'ctx', line: '', content: line });
+            continue;
+        }
+        
+        if (!inHunk) {
+            // hunk 外的行作为上下文
+            if (line.trim()) {
+                lines.push({ type: 'ctx', line: '', content: line });
+            }
+            continue;
+        }
+        
+        // diff 内容行
+        if (line.startsWith('+')) {
+            const content = line.substring(1);
+            lines.push({ type: 'add', line: lineNumNew, content });
+            newLines.push({ type: 'add', line: lineNumNew, content });
+            lineNumNew++;
+            stats.added++;
+        } else if (line.startsWith('-')) {
+            const content = line.substring(1);
+            lines.push({ type: 'del', line: lineNumOld, content });
+            oldLines.push({ type: 'del', line: lineNumOld, content });
+            lineNumOld++;
+            stats.removed++;
+        } else if (line.startsWith('\\')) {
+            // \ No newline at end of file
+            lines.push({ type: 'ctx', line: '', content: line });
+        } else {
+            // 上下文行（以空格开头或空行）
+            const content = line.startsWith(' ') ? line.substring(1) : line;
+            lines.push({ type: 'ctx', line: lineNumOld, content });
+            oldLines.push({ type: 'ctx', line: lineNumOld, content });
+            newLines.push({ type: 'ctx', line: lineNumNew, content });
+            lineNumOld++;
+            lineNumNew++;
+        }
+    }
+    
+    if (inHunk) {
+        flushHunk();
+    }
+    
+    function flushHunk() {
+        // 已通过逐行解析直接 push 到 lines，无需额外操作
+    }
+    
+    return { lines, stats };
+}
+
+/**
+ * 将工具调用结果渲染为 HTML
+ * 如果是 git diff 格式则渲染为 diff 卡片，否则渲染为普通 pre
+ */
+function renderToolResultAsDiff(resultText) {
+    if (!resultText || typeof resultText !== 'string') {
+        return `<pre style="font-size:12px;white-space:pre-wrap;word-break:break-all;margin:0;color:var(--text-primary);max-height:400px;overflow-y:auto;">${escapeHtml(resultText || '')}</pre>`;
+    }
+    
+    if (!isGitDiff(resultText)) {
+        return `<pre style="font-size:12px;white-space:pre-wrap;word-break:break-all;margin:0;color:var(--text-primary);max-height:400px;overflow-y:auto;">${escapeHtml(resultText)}</pre>`;
+    }
+    
+    // 解析 git diff
+    const diffData = parseGitDiff(resultText);
+    const stats = diffData.stats;
+    
+    // 构建 diff 卡片 HTML
+    let html = '<div class="diff-card expanded" style="margin:0;">';
+    html += '<div class="diff-header" style="cursor:pointer;">';
+    html += '<span class="diff-filename">git diff</span>';
+    html += '<span class="diff-stats"><span class="diff-add">+' + stats.added + '</span> <span class="diff-del">-' + stats.removed + '</span></span>';
+    html += '<span class="diff-toggle">▼</span>';
+    html += '</div>';
+    html += '<div class="diff-body" style="display:block;max-height:400px;">';
+    
+    // 过滤上下文：保留变更行前后各3行
+    const CONTEXT = 3;
+    const showIndices = new Set();
+    diffData.lines.forEach((line, i) => {
+        if (line.type !== 'ctx' || (line.line === '' && line.content.startsWith('diff'))) {
+            // 文件头行总是显示
+            if (line.line === '' && (line.content.startsWith('diff') || line.content.startsWith('index') || line.content.startsWith('---') || line.content.startsWith('+++') || line.content.startsWith('@@'))) {
+                showIndices.add(i);
+            } else if (line.type !== 'ctx') {
+                for (let j = Math.max(0, i - CONTEXT); j <= Math.min(diffData.lines.length - 1, i + CONTEXT); j++) {
+                    showIndices.add(j);
+                }
+            }
+        }
+    });
+    // 确保 hunk header 行也显示
+    diffData.lines.forEach((line, i) => {
+        if (line.line === '' && line.content.startsWith('@@')) {
+            showIndices.add(i);
+        }
+    });
+    
+    let lastShown = -1;
+    for (let i = 0; i < diffData.lines.length; i++) {
+        const line = diffData.lines[i];
+        if (!showIndices.has(i)) continue;
+        if (lastShown >= 0 && i - lastShown > 1) {
+            html += '<div class="confirm-diff-sep"></div>';
+        }
+        lastShown = i;
+        
+        if (line.line === '' && (line.content.startsWith('diff') || line.content.startsWith('index') || line.content.startsWith('---') || line.content.startsWith('+++') || line.content.startsWith('@@') || line.content.startsWith('\\'))) {
+            // 元数据行：灰色斜体
+            html += '<div class="diff-line ctx" style="opacity:0.6;font-style:italic;"><span class="diff-num"></span><span class="diff-code">' + escapeHtml(line.content) + '</span></div>';
+        } else {
+            const cls = line.type === 'add' ? 'add' : line.type === 'del' ? 'del' : 'ctx';
+            const prefix = line.type === 'add' ? '+' : line.type === 'del' ? '-' : ' ';
+            html += '<div class="diff-line ' + cls + '"><span class="diff-num">' + (line.line != null && line.line !== '' ? line.line : '') + '</span><span class="diff-code">' + prefix + ' ' + escapeHtml(line.content != null ? line.content : '') + '</span></div>';
+        }
+    }
+    
+    html += '</div></div>';
+    
+    return html;
+}
 
 // 版本号比较：返回 >0 表示 a>b，<0 表示 a<b，0 表示相等
 function compareVersions(a, b) {
