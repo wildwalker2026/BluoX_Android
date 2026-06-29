@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小蓝AI盒子 — 三风格预览</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@400;700;900&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{background:#0D0D0D;color:#fff;font-family:'Inter',sans-serif}
+hgroup{text-align:center;padding:60px 20px 40px}
+hgroup h1{font-size:2.5rem;font-weight:900;letter-spacing:-0.02em;margin-bottom:8px}
+hgroup p{color:#A1A1AA;font-size:1.1rem}
+
+/* === 容器 === */
+.showcase{display:flex;flex-wrap:wrap;gap:0}
+.panel{flex:1 1 380px;min-height:100vh;padding:40px 32px;position:relative;overflow:hidden}
+.panel-label{position:absolute;top:16px;right:20px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;opacity:0.7}
+
+/* ================================
+   PANEL 1 — TERMINAL CLI
+   ================================ */
+.t-cli{background:#050505;font-family:'JetBrains Mono',monospace;color:#33FF00;border-right:1px solid #1A3D1A}
+.t-cli *{font-family:'JetBrains Mono',monospace;border-radius:0!important}
+.t-cli .panel-label{color:#33FF00}
+.t-cli::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(51,255,0,0.03) 2px,rgba(51,255,0,0.03) 4px);pointer-events:none;z-index:1}
+.t-cli>*{position:relative;z-index:2}
+.t-cli .logo{display:flex;align-items:center;gap:12px;margin-bottom:40px}
+.t-cli .logo-box{width:40px;height:40px;border:1px solid #33FF00;display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+.t-cli .logo-text{color:#33FF00;font-weight:700;font-size:0.85rem}
+.t-cli h2{font-size:1.4rem;color:#33FF00;margin-bottom:12px;font-weight:700}
+.t-cli h2::before{content:'> ';opacity:0.5}
+.t-cli .sub{color:#1A6D1A;font-size:0.85rem;margin-bottom:32px;line-height:1.6}
+.t-cli .btn{display:inline-block;border:1px solid #33FF00;color:#33FF00;padding:10px 24px;text-decoration:none;font-weight:700;font-size:0.8rem;transition:all 0.1s;cursor:pointer}
+.t-cli .btn:hover{background:#33FF00;color:#050505}
+.t-cli .btn::before{content:'[ '}
+.t-cli .btn::after{content:' ]'}
+.t-cli .tagline{margin:32px 0 20px;color:#33FF00;font-size:0.75rem;opacity:0.6}
+.t-cli .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#1A3D1A;border:1px solid #1A3D1A;margin-bottom:32px}
+.t-cli .grid2 div{background:#050505;padding:16px;font-size:0.75rem;line-height:1.5}
+.t-cli .grid2 div strong{color:#33FF00;display:block;margin-bottom:4px;font-size:0.8rem}
+.t-cli .cursor{display:inline-block;width:8px;height:16px;background:#33FF00;animation:blink 0.5s steps(1)infinite;vertical-align:middle;margin-left:4px}
+@keyframes blink{50%{opacity:0}}
+
+/* ================================
+   PANEL 2 — BRUTALISM
+   ================================ */
+.t-brut{background:#FFFDF5;color:#000;font-family:'Inter',sans-serif;border-right:1px solid #ddd}
+.t-brut *{border-radius:0!important;transition:none!important}
+.t-brut .panel-label{color:#FF0000}
+.t-brut .logo{margin-bottom:40px}
+.t-brut .logo-box{display:inline-block;font-size:2rem;font-weight:900;letter-spacing:-0.03em;color:#000;border-bottom:4px solid #FF0000;padding-bottom:8px}
+.t-brut h2{font-size:2.5rem;font-weight:900;line-height:1;margin-bottom:16px;text-transform:uppercase;letter-spacing:-0.02em;word-break:break-all}
+.t-brut .sub{font-size:1rem;color:#555;margin-bottom:32px;line-height:1.5}
+.t-brut .btn{display:inline-block;border:4px solid #000;color:#000;padding:14px 36px;text-decoration:none;font-weight:900;font-size:1rem;text-transform:uppercase;letter-spacing:0.05em;position:relative;cursor:pointer}
+.t-brut .btn::after{content:'';position:absolute;top:6px;left:6px;width:100%;height:100%;background:#FF0000;z-index:-1;transition:none}
+.t-brut .btn:active{transform:translate(4px,4px)}
+.t-brut .btn:active::after{top:0;left:0}
+.t-brut .grid1{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:32px}
+.t-brut .grid1 div{border:3px solid #000;padding:20px;margin:-1px 0 0 -1px}
+.t-brut .grid1 div strong{display:block;font-size:1rem;font-weight:900;margin-bottom:4px;text-transform:uppercase}
+.t-brut .grid1 div p{font-size:0.85rem;line-height:1.4;color:#555}
+.t-brut .grid1 div:nth-child(1){background:#FF0000;color:#fff;border-color:#FF0000}
+.t-brut .grid1 div:nth-child(1) p{color:rgba(255,255,255,0.8)}
+.t-brut .grid1 div:nth-child(3){background:#0000FF;color:#fff;border-color:#0000FF}
+.t-brut .grid1 div:nth-child(3) p{color:rgba(255,255,255,0.8)}
+
+/* ================================
+   PANEL 3 — CYBERPUNK
+   ================================ */
+.t-cyber{background:#0D0D0D;font-family:'Space Grotesk',sans-serif;overflow:hidden}
+.t-cyber .panel-label{color:#FF00FF}
+.t-cyber::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,255,255,0.03) 3px,rgba(0,255,255,0.03) 4px);pointer-events:none;z-index:1}
+.t-cyber>*{position:relative;z-index:2}
+.t-cyber .logo{margin-bottom:40px;position:relative}
+.t-cyber .logo-box{font-size:1.8rem;font-weight:900;letter-spacing:-0.03em;color:#FF00FF;text-shadow:0 0 20px #FF00FF,0 0 40px #FF00FF;animation:glitchText 3s infinite}
+.t-cyber .logo-box::after{content:attr(data-text);position:absolute;left:2px;top:0;color:#00FFFF;text-shadow:0 0 20px #00FFFF;clip-path:inset(50% 0 0 0);animation:glitchSlice 2.5s infinite}
+@keyframes glitchText{0%,90%,100%{transform:none}92%{transform:skew(1deg)}94%{transform:skew(-1deg)}96%{transform:none}}
+@keyframes glitchSlice{0%,90%,100%{clip-path:inset(50% 0 0 0)}92%{clip-path:inset(20% 0 50% 0)}94%{clip-path:inset(60% 0 10% 0)}}
+.t-cyber h2{font-size:2rem;font-weight:900;color:#00FFFF;text-shadow:0 0 15px #00FFFF;margin-bottom:12px;line-height:1.1}
+.t-cyber .sub{color:#A1A1AA;font-size:0.95rem;margin-bottom:40px;line-height:1.6}
+.t-cyber .btn{display:inline-block;border:2px solid #FF00FF;color:#FF00FF;padding:12px 32px;text-decoration:none;font-weight:700;font-size:0.9rem;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);text-shadow:0 0 8px #FF00FF;box-shadow:0 0 15px rgba(255,0,255,0.3);transition:all 0.15s;cursor:pointer}
+.t-cyber .btn:hover{background:#FF00FF;color:#0D0D0D;text-shadow:none;box-shadow:0 0 30px #FF00FF}
+.t-cyber .grid-c{display:grid;grid-template-columns:1fr 1fr;gap:2px;background:#1a1a2e;margin-top:32px}
+.t-cyber .grid-c div{background:#0D0D0D;border-left:3px solid #FF00FF;padding:20px}
+.t-cyber .grid-c div:nth-child(even){border-left-color:#00FFFF}
+.t-cyber .grid-c div strong{color:#00FFFF;display:block;margin-bottom:4px;font-size:0.9rem;font-weight:700;letter-spacing:0.02em}
+.t-cyber .grid-c div p{color:#71717A;font-size:0.8rem;line-height:1.4}
+
+/* === RESPONSIVE === */
+@media(max-width:800px){.panel{flex:1 1 100%;min-height:auto;border-right:none;border-bottom:1px solid #333}}
+</style>
+</head>
+<body>
+
+<hgroup>
+    <h1>小蓝AI盒子 — 风格预览</h1>
+    <p>同一内容 · 三套设计系统</p>
+</hgroup>
+
+<div class="showcase">
+
+<!-- ============ PANEL 1: TERMINAL CLI ============ -->
+<div class="panel t-cli">
+    <span class="panel-label">Terminal CLI</span>
+    <div class="logo">
+        <div class="logo-box">></div>
+        <span class="logo-text">bluox ~ $</span>
+    </div>
+    <h2>一台手机 即可 VibeCoding</h2>
+    <p class="sub">
+        $ 小蓝AI盒子（BluoX）<br>
+        $ 隐私优先 · 本地存储 · 多模型聚合<br>
+        $ 支持 DeepSeek / 千问 / 豆包 / 智谱<br>
+        <span style="display:inline-block;margin-top:8px">$ ready <span class="cursor"></span></span>
+    </p>
+    <a href="#" class="btn">EXECUTE</a>
+    <div class="tagline">// CORE_MODULES</div>
+    <div class="grid2">
+        <div><strong>> 多平台聚合</strong> 一个入口畅聊所有AI</div>
+        <div><strong>> 工具调用</strong> AI自主读写文件编辑代码</div>
+        <div><strong>> 终端集成</strong> +Termux 手机端VibeCoding</div>
+        <div><strong>> 隐私安全</strong> 100%本地存储零上传</div>
+        <div><strong>> 本地知识库</strong> 上传文档构建专属检索</div>
+        <div><strong>> 跨设备协同</strong> 手机发指令电脑执行</div>
+    </div>
+    <a href="#" class="btn">DOWNLOAD</a>
+</div>
+
+<!-- ============ PANEL 2: BRUTALISM ============ -->
+<div class="panel t-brut">
+    <span class="panel-label">Brutalism</span>
+    <div class="logo">
+        <div class="logo-box">BLUOX</div>
+    </div>
+    <h2>一台手机<br>即可<br>VIBECODING</h2>
+    <p class="sub">小蓝AI盒子。隐私优先。本地存储。支持 DeepSeek、千问、豆包、智谱。多模型聚合 AI 工作平台。</p>
+    <a href="#" class="btn">下载 Android</a>
+    <div class="grid1">
+        <div><strong>多平台聚合</strong><p>一个入口畅聊所有AI</p></div>
+        <div><strong>工具调用</strong><p>AI自主读写文件编辑代码</p></div>
+        <div><strong>终端集成</strong><p>+Termux 手机端VibeCoding</p></div>
+        <div><strong>隐私安全</strong><p>100%本地存储零上传</p></div>
+        <div><strong>本地知识库</strong><p>上传文档构建专属检索</p></div>
+        <div><strong>跨设备协同</strong><p>手机发指令电脑执行</p></div>
+    </div>
+</div>
+
+<!-- ============ PANEL 3: CYBERPUNK ============ -->
+<div class="panel t-cyber">
+    <span class="panel-label">Cyberpunk UI</span>
+    <div class="logo">
+        <div class="logo-box" data-text="BLUOX">BLUOX</div>
+    </div>
+    <h2>一台手机<br>即可 VibeCoding</h2>
+    <p class="sub">小蓝AI盒子（BluoX）是隐私优先的多模型 AI 工作平台。支持 DeepSeek、通义千问、豆包、智谱清言。所有数据本地存储，零上传。</p>
+    <a href="#" class="btn">↓ DOWNLOAD</a>
+    <div class="grid-c">
+        <div><strong>多平台聚合</strong><p>一个入口畅聊所有AI</p></div>
+        <div><strong>工具调用</strong><p>AI自主读写文件编辑代码</p></div>
+        <div><strong>终端集成</strong><p>+Termux 手机端VibeCoding</p></div>
+        <div><strong>隐私安全</strong><p>100%本地存储零上传</p></div>
+        <div><strong>本地知识库</strong><p>上传文档构建专属检索</p></div>
+        <div><strong>跨设备协同</strong><p>手机发指令电脑执行</p></div>
+    </div>
+</div>
+
+</div>
+</body>
+</html>

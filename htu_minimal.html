@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <title>使用文档 - 小蓝AI盒子</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --max-width: 680px;
+            --font-body: 18px;
+            --color-text: #1a1a1a;
+            --color-bg: #ffffff;
+            --color-muted: #64748B;
+            --spacing: 4rem;
+        }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+            font-size: var(--font-body);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: var(--spacing) 2rem;
+        }
+        a { color: inherit; }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 5rem;
+        }
+        h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            margin: 4rem 0 1rem;
+            cursor: pointer;
+            user-select: none;
+        }
+        h2:hover { opacity: 0.6; }
+
+        .section-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+
+        p { color: var(--color-muted); margin-bottom: 1rem; }
+
+        .step { margin-bottom: 0.5rem; color: var(--color-muted); }
+        .step-num { font-weight: 600; margin-right: 8px; color: var(--color-text); }
+
+        img {
+            max-width: 48%;
+            height: auto;
+            display: block;
+            margin: 0 auto 1.5rem;
+        }
+        .img-row { display: flex; gap: 4%; justify-content: center; margin-bottom: 1.5rem; }
+        .img-row img { margin: 0; }
+        .img-single { text-align: center; margin-bottom: 1.5rem; }
+        .img-single img { display: inline-block; }
+
+        pre {
+            margin: 0 0 1.5rem 1rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            color: var(--color-muted);
+            overflow-x: auto;
+            line-height: 1.6;
+        }
+
+        code { font-family: 'SF Mono', 'Fira Code', monospace; }
+        b, strong { color: var(--color-text); font-weight: 600; }
+
+        .back { display: inline-block; margin-top: 5rem; color: var(--color-muted); }
+    </style>
+</head>
+<body>
+
+<h1>使用文档</h1>
+
+<h2>一、配置 API Key</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <div class="step"><span class="step-num">1.</span>前往AI服务商设置界面，选择一个AI服务商</div>
+    <div class="img-row"><img src="../docsimage/AI服务商设置.png"><img src="../docsimage/AI服务商设置2.png"></div>
+    <div class="step"><span class="step-num">2.</span>如果没有 API Key，点击「获取 Key」按钮</div>
+    <div class="img-single"><img src="../docsimage/获取key.png"></div>
+    <div class="step"><span class="step-num">3.</span>在 API-KEY 管理页面创建新的 API Key</div>
+    <div class="step"><span class="step-num">4.</span>复制 API Key，在小蓝AI盒子中填入即可使用</div>
+  </div>
+</div>
+
+<h2>二、手机端配对电脑</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <div class="step"><span class="step-num">1.</span>确保手机和电脑连接同一局域网（WiFi）</div>
+    <div class="step"><span class="step-num">2.</span>电脑端打开小蓝AI盒子，点击「配对」获取配对码</div>
+    <div class="step"><span class="step-num">3.</span>手机端进入设置 → 配对电脑，输入配对码完成连接</div>
+  </div>
+</div>
+
+<h2>三、笔记功能</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>手机端支持笔记功能，帮助你随时记录重要信息。所有笔记以 TXT 文件形式存储在本地，不会上传到任何服务器。</p>
+    <div class="step"><span class="step-num">1.</span>在主界面标题栏空白处点击，唤出笔记功能</div>
+    <div class="img-single"><img src="../docsimage/唤出笔记.png"></div>
+    <div class="step"><span class="step-num">2.</span><b>新增笔记</b> — 点击「新增笔记」按钮，输入内容即可创建</div>
+    <div class="step"><span class="step-num">3.</span><b>编辑笔记</b> — 点击任意笔记即可进入编辑，内容会自动保存</div>
+    <div class="step"><span class="step-num">4.</span><b>编辑标题</b> — 点击笔记右侧菜单按钮，选择「编辑标题」可修改笔记名称</div>
+    <div class="step"><span class="step-num">5.</span><b>置顶笔记</b> — 点击笔记右侧菜单按钮，选择「置顶」可将笔记固定在列表顶部。置顶的笔记会显示高亮边框，再次点击「取消置顶」即可恢复</div>
+    <div class="step"><span class="step-num">6.</span><b>删除笔记</b> — 点击笔记右侧菜单按钮，选择「删除」即可移除笔记</div>
+    <div class="step"><span class="step-num">7.</span><b>获取电脑端笔记</b> — 点击「获取电脑端笔记」，将电脑上的笔记同步到手机</div>
+    <div class="step"><span class="step-num">8.</span><b>同步到电脑</b> — 编辑笔记后点击「同步到电脑」，将内容同步回电脑端</div>
+    <p>笔记列表按置顶优先、时间倒序排列。笔记文件保存在下载目录的 BlueBox/Notes 文件夹下。</p>
+  </div>
+</div>
+
+<h2>四、Skills 技能</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>Skills（技能）是可扩展的 AI 工具模块。你只需在 Skills 目录下创建子目录，放入 SKILL.md 文件，AI 就能自动识别并使用。Skills 与笔记共用同一个弹窗，通过顶部分页切换。</p>
+    <div class="step"><span class="step-num">1.</span><b>进入 Skills</b> — 在主界面标题栏空白处点击唤出笔记弹窗，点击顶部分页栏的「Skills」按钮切换到技能列表</div>
+    <div class="step"><span class="step-num">2.</span><b>两种类型</b> — Skill 分为<b>可执行工具</b>和<b>参考文档</b>两种。可执行工具会注册为 AI 可直接调用的工具；参考文档仅有说明文本，AI 会主动读取作为知识参考</div>
+    <div class="step"><span class="step-num">3.</span><b>启用/禁用</b> — 点击任意可执行 Skill，弹出操作菜单，可选择「启用」或「禁用」。禁用的 Skill 不会被 AI 加载为工具</div>
+    <div class="step"><span class="step-num">4.</span><b>查看内容</b> — 点击 Skill 行可查看其 SKILL.md 的完整内容</div>
+    <p><b>Skill 目录结构：</b></p>
+    <pre>Skills/
+├── video-opener/
+│   ├── SKILL.md
+│   └── execute.sh
+└── my-helper/
+    └── SKILL.md</pre>
+    <div class="step"><span class="step-num">5.</span><b>可执行条件</b> — 目录下有 <code>execute.sh</code> 或 <code>runtime.conf</code> 文件，或 SKILL.md 中声明了 <code>runtime:</code> 字段，即视为可执行工具</div>
+    <div class="step"><span class="step-num">6.</span><b>参考文档</b> — 仅有 SKILL.md 且无 runtime 声明，AI 会主动读取作为知识参考，不会注册为工具</div>
+    <p>Skills 目录由「数据目录」设置决定，默认为 <code>/storage/emulated/0/Download/Bluox/Skills</code>。修改数据目录后 Skills 会自动重新加载。</p>
+  </div>
+</div>
+
+<h2>五、知识库功能</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>知识库功能可以让你上传文档，AI对话时会自动检索相关内容作为参考。</p>
+    <div class="step"><span class="step-num">1.</span>进入设置 → 知识库，开启「启用知识库检索」开关</div>
+    <div class="step"><span class="step-num">2.</span>在开关下方点击「管理知识库文档」，上传文档文件</div>
+    <div class="step"><span class="step-num">3.</span>支持格式：txt、md、pdf、docx、doc、json、csv</div>
+    <div class="step"><span class="step-num">4.</span>上传后发送消息时，AI会自动检索相关文档内容作为参考资料</div>
+    <div class="step"><span class="step-num">5.</span>可调整「向量检索片段」和「关键词检索片段」数量，控制检索返回的文档片段数（1-10）</div>
+    <p>旧版 .doc 文件解析效果较差，建议转换为 .txt、.docx 等格式以获得更好的效果。</p>
+  </div>
+</div>
+
+<h2>六、MCP 服务器</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>MCP（Model Context Protocol）是 AI 工具标准协议。添加 MCP Server 后，AI 可以使用服务器提供的工具（如查询门店、下单等），仅支持 Streamable HTTP 传输。</p>
+    <div class="step"><span class="step-num">1.</span>进入设置 → MCP 服务器，点击「添加 MCP 服务器」</div>
+    <div class="step"><span class="step-num">2.</span>点击名称、服务器 URL、请求头等输入框，会从底部弹出编辑面板进行输入。填写服务器 URL（如：<code>https://example.com/mcp</code>），如有认证需求可在「请求头」中填入 JSON 格式的自定义请求头（如：<code>{"Authorization": "Bearer xxx"}</code>）</div>
+    <div class="step"><span class="step-num">3.</span>点击「保存并连接」，系统会自动连接并获取服务器提供的工具列表</div>
+    <div class="step"><span class="step-num">4.</span>连接成功后，标签会显示绿色「已连接」徽章和高亮边框，并显示可用工具数量</div>
+    <div class="step"><span class="step-num">5.</span>点击任意 MCP 服务器标签，弹出操作菜单：<b>启用/禁用</b>、<b>重新连接</b>、<b>编辑</b>、<b>删除</b></div>
+    <div class="step"><span class="step-num">6.</span>若连接失败，标签右侧会显示红色 <b>ⓘ</b> 图标，点击可查看完整错误信息</div>
+    <p>连接成功后，AI 对话时会自动加载已启用服务器的工具，无需额外操作。</p>
+  </div>
+</div>
+
+<h2>七、智能体管理</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>智能体是为你提供不同服务的 AI 角色，你可以创建、编辑、排序和切换智能体。</p>
+    <div class="step"><span class="step-num">1.</span><b>选择智能体</b> — 点击标题栏的智能体名称，打开智能体选择界面，点击任意智能体即可切换</div>
+    <div class="step"><span class="step-num">2.</span><b>创建智能体</b> — 在智能体选择界面点击「创建自定义智能体」，填写名称、图标和提示词</div>
+    <div class="step"><span class="step-num">3.</span><b>编辑智能体</b> — 长按智能体标签，选择「编辑」，可修改名称、图标、提示词和聊天背景</div>
+    <div class="step"><span class="step-num">4.</span><b>预设智能体</b> — 编辑智能体时，可从预设列表中选择模板（翻译专家、前端代码专家、小说家等）。选择预设会<b>覆盖</b>当前名称和提示词，系统会弹出确认框提醒你确认</div>
+    <div class="step"><span class="step-num">5.</span><b>拖拽排序</b> — 在智能体选择界面，长按智能体标签拖动即可调整顺序</div>
+    <div class="step"><span class="step-num">6.</span><b>删除智能体</b> — 长按智能体标签，选择「删除」即可移除</div>
+  </div>
+</div>
+
+<h2>八、聊天记录导入与导出</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>你可以将聊天记录导出为文件备份，或从文件导入恢复。</p>
+    <div class="step"><span class="step-num">1.</span><b>导出</b> — 在聊天界面点击菜单按钮，选择「导出当前话题」，文件将保存到下载目录（格式为 JSON）</div>
+    <div class="step"><span class="step-num">2.</span><b>导入</b> — 在聊天界面点击菜单按钮，选择「导入聊天记录」，选择之前导出的 JSON 文件即可恢复</div>
+    <p>导出文件不加密，请妥善保管。导入时兼容不同版本的导出格式。</p>
+  </div>
+</div>
+
+<h2>九、主题与外观</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>小蓝AI盒子支持浅色和深色两种主题模式，以及多种主题配色。</p>
+    <div class="step"><span class="step-num">1.</span>进入设置 → 外观，可切换浅色/深色主题</div>
+    <div class="step"><span class="step-num">2.</span>在「主题颜色」中选择喜欢的配色方案（翠竹清风、碧海蓝天等），选择器中会显示颜色预览圆点</div>
+    <div class="step"><span class="step-num">3.</span>深色模式下，AI 消息气泡和用户消息气泡使用不同深度的背景色，便于区分</div>
+    <div class="step"><span class="step-num">4.</span>支持极简风格主题，提供更简洁的视觉体验</div>
+  </div>
+</div>
+
+<h2>十、话题名称</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>话题名称功能可以在发送首条消息后自动为对话生成名称，你也可以自定义生成规则。</p>
+    <div class="step"><span class="step-num">1.</span>进入设置 → 话题名称，开启「自动生成话题名称」开关</div>
+    <div class="step"><span class="step-num">2.</span>开启后，发送首条消息时会自动调用 AI 生成话题名称；关闭后话题保持「新话题」</div>
+    <div class="step"><span class="step-num">3.</span><b>自定义提示词</b> — 在「生成话题提示词」中可编辑生成话题名称时使用的提示词，支持占位符 <code>{agentDesc}</code>（智能体描述）和 <code>{firstMessage}</code>（用户第一条消息内容）</div>
+    <div class="step"><span class="step-num">4.</span>点击「恢复默认」可将提示词重置为默认内容</div>
+    <p>留空提示词将使用默认的七字古诗格式生成。</p>
+  </div>
+</div>
+
+<h2>十一、连接电脑与文件传输</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>手机端可以连接电脑端的小蓝AI盒子，连接后支持双向文件传输。</p>
+    <div class="step"><span class="step-num">1.</span>确保手机和电脑连接同一局域网（WiFi）</div>
+    <div class="step"><span class="step-num">2.</span>电脑端打开小蓝AI盒子，点击「配对」获取配对码</div>
+    <div class="step"><span class="step-num">3.</span>手机端进入设置 → 连接电脑，输入电脑 IP 地址并点击「连接」</div>
+    <div class="step"><span class="step-num">4.</span>输入电脑端显示的配对码，完成配对</div>
+    <div class="step"><span class="step-num">5.</span>连接成功后，在「已连接」状态下方会显示「发送文件到电脑」按钮</div>
+    <div class="step"><span class="step-num">6.</span>点击「发送文件到电脑」选择文件，传输过程中会显示文件名和进度条</div>
+    <div class="step"><span class="step-num">7.</span>接收电脑端发送的文件时，同样会显示接收进度</div>
+    <p>如需断开连接，点击「已连接」右侧的「断开」按钮即可。</p>
+  </div>
+</div>
+
+<h2>十二、Termux 终端集成</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>小蓝AI盒子支持搭配 Termux（Android 终端模拟器）使用，AI 可以直接在手机上执行命令、运行脚本、编译项目，实现真正的手机端 Vibe Coding。</p>
+    <div class="step"><span class="step-num">1.</span><b>安装 Termux</b> — 在 F-Droid 或 GitHub 下载安装 Termux（请勿使用 Google Play 版本，版本过旧）</div>
+    <div class="step"><span class="step-num">2.</span><b>授予权限</b> — 首次使用时会自动请求 RUN_COMMAND 权限，请在弹窗中点击「允许」</div>
+    <div class="step"><span class="step-num">3.</span><b>启用外部应用调用</b> — 在 Termux 中执行以下命令：</div>
+    <pre>mkdir -p ~/.termux
+echo 'allow-external-apps=true' >> ~/.termux/termux.properties
+termux-reload-settings</pre>
+    <div class="step"><span class="step-num">4.</span><b>安装 Python 环境</b> — Termux 桥接依赖 Python，在 Termux 中执行以下命令安装：</div>
+    <pre>pkg update && pkg upgrade -y
+pkg install python -y</pre>
+    <div class="step"><span class="step-num">5.</span><b>执行命令</b> — AI 需要执行命令时会自动调用 Termux，你会在确认卡片中看到具体命令内容，点击「允许」即可执行</div>
+    <div class="step"><span class="step-num">6.</span><b>取消命令</b> — 执行过程中可以随时停止生成，正在执行的 Termux 命令会被优雅取消并清理临时文件</div>
+    <div class="step"><span class="step-num">7.</span><b>专家模式开关</b> — 在专家模式下，可独立控制是否启用 Termux 桥接，按需开启</div>
+    <p>Termux 支持 git、node、python 等常用开发工具，安装对应包后 AI 即可调用。</p>
+  </div>
+</div>
+
+<h2>十三、专家模式</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>专家模式提供高级文件操作、数学计算和数据可视化能力，开启后 AI 可以读写指定工作目录中的文件，进行精确数学计算，并生成数据可视化图表。</p>
+    <div class="step"><span class="step-num">1.</span>进入设置 → 专家模式，开启「专家模式」开关</div>
+    <div class="step"><span class="step-num">2.</span>开启后设置「工作目录」，AI 助手将在此目录范围内进行文件操作</div>
+    <div class="step"><span class="step-num">3.</span>连接电脑后，还可设置「电脑端工作目录」，让 AI 操作电脑上的文件</div>
+    <div class="step"><span class="step-num">4.</span><b>文件操作</b> — AI 可以读取、写入、编辑、搜索文件，支持 txt、js、py、json 等文本文件，以及 PDF、Word、Excel、PPT 等文档</div>
+    <div class="step"><span class="step-num">5.</span><b>数学计算</b> — AI 遇到数学问题时会自动调用数学引擎进行精确计算，支持四则运算、三角函数、求导、方程求解、定积分、矩阵运算、单位换算等</div>
+    <div class="step"><span class="step-num">6.</span><b>数据可视化</b> — AI 可以根据数据生成可视化图表，支持折线图、柱状图、饼图、散点图、雷达图、热力图等所有 ECharts 图表类型。图表支持交互并持久化存储到本地</div>
+    <p>专家模式涉及文件读写操作，请确保工作目录设置正确。</p>
+  </div>
+</div>
+
+<h2>十四、上下文选择与截图</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>上下文选择功能可以让你选取一段连续的对话消息，将其作为上下文发送给 AI，或截图保存。</p>
+    <div class="step"><span class="step-num">1.</span><b>进入选择模式</b> — 在聊天界面点击菜单按钮，选择「上下文选择」，进入消息选择模式</div>
+    <div class="step"><span class="step-num">2.</span><b>选择消息范围</b> — 点击任意消息作为起点，再点击另一条消息作为终点，系统会自动选中两条消息之间的所有消息（含首尾）</div>
+    <div class="step"><span class="step-num">3.</span><b>确定</b> — 点击底部「确定」按钮，将选中的消息作为上下文发送给 AI</div>
+    <div class="step"><span class="step-num">4.</span><b>截图</b> — 点击底部「截图」按钮，将选中的消息生成为高清图片（2倍分辨率），自动去除头像和操作按钮</div>
+    <div class="step"><span class="step-num">5.</span><b>保存位置</b> — 手机端截图会保存到相册</div>
+    <div class="step"><span class="step-num">6.</span><b>取消</b> — 点击底部「取消」按钮可退出选择模式</div>
+    <p>截图会完整保留当前主题样式（包括深色模式）。</p>
+  </div>
+</div>
+
+<h2>十五、自定义服务商</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>除了内置的 AI 服务商外，你还可以添加自定义服务商，接入任何兼容 OpenAI API 格式的 AI 服务。</p>
+    <div class="step"><span class="step-num">1.</span><b>添加自定义服务商</b> — 进入设置 → AI 服务商，点击「添加自定义服务商」，填写名称、Base URL 和 API Key</div>
+    <div class="step"><span class="step-num">2.</span><b>模型管理</b> — 自定义服务商支持手动添加/删除模型，也可通过「获取模型」按钮自动拉取模型列表</div>
+    <div class="step"><span class="step-num">3.</span><b>获取 KEY</b> — 点击「获取 KEY」按钮可跳转到各服务商的 API Key 管理页面</div>
+    <div class="step"><span class="step-num">4.</span><b>服务商配置参考</b> — 编辑自定义服务商时，可选择一个内置服务商作为「配置参考」（如 DeepSeek、GLM 等），自动继承其深度思考、联网搜索、获取模型、话题名称生成等能力</div>
+    <div class="step"><span class="step-num">5.</span><b>自定义请求体</b> — 支持为每个服务商配置自定义 JSON 请求体参数，满足特殊 API 需求</div>
+  </div>
+</div>
+
+<h2>十六、网络搜索</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>AI 助手支持联网搜索功能，可以实时获取互联网上的最新信息、新闻、天气等内容。</p>
+    <div class="step"><span class="step-num">1.</span><b>支持的服务商</b> — DeepSeek、千问、豆包、GLM、Kimi、MiniMax，以及配置了对应参考服务商的自定义服务商</div>
+    <div class="step"><span class="step-num">2.</span><b>开启方式</b> — 在设置中开启「网络搜索」开关，或在聊天界面点击更多操作按钮快速切换</div>
+    <div class="step"><span class="step-num">3.</span><b>搜索引擎</b> — 默认使用搜索引擎获取结果，无结果时自动回退</div>
+    <div class="step"><span class="step-num">4.</span><b>时间范围过滤</b> — 支持按时间范围筛选：过去 24 小时、一周、一个月、一年</div>
+    <div class="step"><span class="step-num">5.</span><b>网页内容抓取</b> — AI 可直接抓取指定网页的文本内容获取更详细信息</div>
+    <div class="step"><span class="step-num">6.</span><b>状态记忆</b> — 网络搜索开关状态会自动保存，切换服务商后也会保持记忆</div>
+  </div>
+</div>
+
+<h2>十七、沉浸模式</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>沉浸模式提供更专注的阅读体验，自动隐藏历史消息，只保留最新一条消息，滚动时恢复显示。</p>
+    <div class="step"><span class="step-num">1.</span><b>开启/关闭</b> — 在聊天界面点击菜单按钮，选择「沉浸模式」即可切换</div>
+    <div class="step"><span class="step-num">2.</span><b>默认开启</b> — 进入设置 → 聊天设置，开启「沉浸模式默认开启」后，所有新话题自动进入沉浸模式</div>
+    <div class="step"><span class="step-num">3.</span><b>单独关闭</b> — 即使开启了默认沉浸模式，仍可在菜单中单独关闭某个话题的沉浸模式</div>
+    <div class="step"><span class="step-num">4.</span><b>自动隐藏</b> — 滚动到底部后约 2 秒，除最新消息外的所有消息会以淡出动画隐藏</div>
+    <div class="step"><span class="step-num">5.</span><b>滚动恢复</b> — 手动上下滚动时，所有隐藏的消息会以淡入动画重新显示</div>
+    <div class="step"><span class="step-num">6.</span><b>发送消息</b> — 发送新消息后自动滚动到底部并重新计时隐藏</div>
+    <p>沉浸模式为每个话题独立记忆，切换话题时自动应用对应设置。</p>
+  </div>
+</div>
+
+<h2>十八、全局搜索</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>全局搜索功能可以帮你快速查找历史对话内容，支持按消息内容和话题名称搜索。</p>
+    <div class="step"><span class="step-num">1.</span><b>打开搜索</b> — 在聊天界面点击菜单按钮，选择「搜索」，打开全局搜索面板</div>
+    <div class="step"><span class="step-num">2.</span><b>搜索范围</b> — 默认搜索所有智能体的所有话题；在话题抽屉中打开的搜索仅搜索当前话题</div>
+    <div class="step"><span class="step-num">3.</span><b>话题名称搜索</b> — 匹配的话题名称显示在搜索结果顶部</div>
+    <div class="step"><span class="step-num">4.</span><b>消息内容搜索</b> — 搜索所有对话消息内容，结果截取关键词上下文并高亮显示</div>
+    <div class="step"><span class="step-num">5.</span><b>时间戳</b> — 每条搜索结果显示消息发送时间</div>
+    <div class="step"><span class="step-num">6.</span><b>跳转定位</b> — 点击任意搜索结果，自动切换到对应智能体和话题，并定位到该消息</div>
+    <p>搜索结果最多显示前 50 条。</p>
+  </div>
+</div>
+
+<h2>十九、消息版本切换</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>当对 AI 回答进行「刷新」操作后，会生成多个版本的回答，你可以方便地切换查看不同版本。</p>
+    <div class="step"><span class="step-num">1.</span><b>版本切换器</b> — 当一条 AI 消息存在多个版本时，消息时间戳右侧会显示版本切换器（如 <code>1/3</code>）</div>
+    <div class="step"><span class="step-num">2.</span><b>切换版本</b> — 点击 <code>&lt;</code> 或 <code>&gt;</code> 按钮可切换到上一版本或下一版本</div>
+    <div class="step"><span class="step-num">3.</span><b>深度思考提示</b> — 如果该版本包含深度思考内容，时间戳行最右侧会显示「深度思考」标签，点击可展开查看</div>
+  </div>
+</div>
+
+<h2>二十、图片压缩与处理</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>小蓝AI盒子提供两种图片压缩功能：独立的图片压缩工具，以及发送图片时的自动压缩。</p>
+    <div class="step"><span class="step-num">1.</span><b>无损压缩图片工具</b> — 在聊天界面点击更多操作按钮，选择「无损压缩图片」，选择图片后可调整压缩质量，实时预览效果</div>
+    <div class="step"><span class="step-num">2.</span><b>发送图片自动压缩</b> — 进入设置 → 聊天设置，开启「发送图片自动压缩」开关（默认开启），可设置压缩阈值和目标大小</div>
+    <div class="step"><span class="step-num">3.</span><b>压缩提示</b> — 图片压缩成功后会显示 Toast 提示（如「图片已压缩: 3072KB → 480KB」），失败时自动回退使用原图</div>
+    <p>关闭开关后图片将原样发送，不会进行任何压缩处理。</p>
+  </div>
+</div>
+
+<h2>二十一、话题管理</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>话题管理功能帮助你组织和管理不同的对话会话。</p>
+    <div class="step"><span class="step-num">1.</span><b>新建话题</b> — 点击标题栏的「+」按钮创建新话题</div>
+    <div class="step"><span class="step-num">2.</span><b>切换话题</b> — 点击标题栏的话题名称，打开话题抽屉，点击任意话题即可切换</div>
+    <div class="step"><span class="step-num">3.</span><b>删除话题</b> — 在话题抽屉中，长按话题标签或点击菜单按钮，选择「删除」</div>
+    <div class="step"><span class="step-num">4.</span><b>话题排序</b> — 话题列表按最近活跃时间排序</div>
+    <div class="step"><span class="step-num">5.</span><b>重命名话题</b> — 在话题抽屉中点击话题菜单，选择「重命名」可自定义话题名称</div>
+    <p>话题名称支持自动生成（见「话题名称」章节），也可手动修改。</p>
+  </div>
+</div>
+
+<h2>二十二、聊天操作</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>掌握基本的聊天操作，让对话更高效。</p>
+    <div class="step"><span class="step-num">1.</span><b>发送消息</b> — 在输入框输入内容，点击发送按钮（或按回车）发送消息</div>
+    <div class="step"><span class="step-num">2.</span><b>停止生成</b> — AI 回复过程中，点击输入框区域的停止按钮可中断生成</div>
+    <div class="step"><span class="step-num">3.</span><b>刷新回答</b> — 点击 AI 消息下方的刷新按钮，重新生成当前问题的回答（会保留原版本）</div>
+    <div class="step"><span class="step-num">4.</span><b>复制消息</b> — 长按 AI 或用户消息，选择「复制」复制消息内容</div>
+    <div class="step"><span class="step-num">5.</span><b>选中文本高亮</b> — 在聊天中选中任意文本，系统会自动高亮聊天中其他位置的相同文本</div>
+    <div class="step"><span class="step-num">6.</span><b>生成完成提示音</b> — AI 回复完成后会播放提示音，可在设置中开关并调节音量</div>
+    <div class="step"><span class="step-num">7.</span><b>聊天菜单</b> — 点击输入框旁的菜单按钮，可快速切换网络搜索、打开图片压缩、上下文选择等功能</div>
+    <p>刷新操作会保留历史版本，不会丢失之前的回答内容。</p>
+  </div>
+</div>
+
+<h2>二十三、设置总览</h2>
+<div class="section-body">
+  <div class="section-inner">
+    <p>小蓝AI盒子的设置界面分为多个分类，方便你快速找到需要的配置项。</p>
+    <div class="step"><span class="step-num">1.</span><b>AI 服务商</b> — 管理内置和自定义 AI 服务商，配置 API Key、模型选择、深度思考、联网搜索等</div>
+    <div class="step"><span class="step-num">2.</span><b>外观</b> — 切换浅色/深色主题，选择主题配色（翠竹清风、碧海蓝天、星海蓝、落日黄等）</div>
+    <div class="step"><span class="step-num">3.</span><b>聊天设置</b> — 图片自动压缩、沉浸模式默认开启、分页大小等</div>
+    <div class="step"><span class="step-num">4.</span><b>通知设置</b> — 生成完成提示音开关及音量调节</div>
+    <div class="step"><span class="step-num">5.</span><b>知识库</b> — 启用知识库检索，管理知识库文档</div>
+    <div class="step"><span class="step-num">6.</span><b>MCP 服务器</b> — 添加和管理 MCP 服务器</div>
+    <div class="step"><span class="step-num">7.</span><b>话题名称</b> — 自动生成话题名称开关及自定义提示词</div>
+    <div class="step"><span class="step-num">8.</span><b>专家模式</b> — 开启专家模式，设置工作目录，控制 Termux 桥接开关</div>
+    <div class="step"><span class="step-num">9.</span><b>连接电脑</b> — 配对电脑、文件传输</div>
+    <div class="step"><span class="step-num">10.</span><b>数据目录</b> — 设置笔记和 Skills 的存储路径</div>
+    <div class="step"><span class="step-num">11.</span><b>关于</b> — 查看版本号、更新日志、联系方式</div>
+    <p>设置项修改后会自动保存，无需手动确认。</p>
+  </div>
+</div>
+
+<a href="https://www.xiaolanbox.com" class="back">← 返回官网</a>
+
+<script>
+document.querySelectorAll('h2').forEach(function(h) {
+    h.addEventListener('click', function() {
+        var body = h.nextElementSibling;
+        var isOpen = body.classList.contains('open');
+        if (isOpen) {
+            body.style.maxHeight = body.scrollHeight + 'px';
+            body.offsetHeight;
+            body.style.maxHeight = '0';
+            body.classList.remove('open');
+            h.classList.remove('open');
+        } else {
+            body.classList.add('open');
+            h.classList.add('open');
+            body.style.maxHeight = body.scrollHeight + 'px';
+            body.addEventListener('transitionend', function handler(e) {
+                if (e.propertyName !== 'max-height') return;
+                body.style.maxHeight = 'none';
+                body.removeEventListener('transitionend', handler);
+            });
+        }
+    });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logo 格子碎裂动画</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{
+    background:#fff;
+    display:flex;align-items:center;justify-content:center;
+    min-height:100vh;
+    font-family:'Inter',sans-serif;
+}
+.wrap{text-align:center}
+.svg-wrap{position:relative;width:280px;height:280px;margin:0 auto 40px;cursor:pointer;overflow:visible}
+.svg-wrap svg{width:100%;height:100%;overflow:visible}
+
+/* 每个格子 */
+.cell{animation:none}
+.cell.active{
+    animation: flyOut 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards,
+               flyBack 0.6s 1.6s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+@keyframes flyOut{
+    0%{transform:translate(0,0) scale(1);opacity:1}
+    100%{transform:translate(var(--tx),var(--ty)) scale(var(--ts));opacity:0.3}
+}
+@keyframes flyBack{
+    0%{transform:translate(var(--tx),var(--ty)) scale(var(--ts));opacity:0.3}
+    100%{transform:translate(0,0) scale(1);opacity:1}
+}
+
+.hint{color:#999;font-size:0.9rem;margin-top:16px}
+.btn{
+    display:inline-block;padding:12px 32px;
+    border:1px solid #171717;color:#171717;
+    background:none;font-size:1rem;cursor:pointer;
+    font-family:inherit;margin-top:20px;
+    transition:all 0.2s;
+}
+.btn:hover{background:#171717;color:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="svg-wrap" id="logoWrap">
+        <svg id="logoSvg" viewBox="0 0 512 512"></svg>
+    </div>
+    <p class="hint">点击 Logo 触发碎裂</p>
+    <button class="btn" id="replayBtn">重新播放</button>
+</div>
+
+<script>
+// === Logo 原始图形 ===
+const LOGO_PARTS = [
+    {el:'rect', attrs:{width:512,height:512,rx:100}, fill:'#171717'},
+    {el:'rect', attrs:{x:90,y:130,width:332,height:200,rx:30}, fill:'#FFFFFF'},
+    {el:'polygon', attrs:{points:'150,326 200,326 130,400'}, fill:'#FFFFFF'},
+    {el:'circle', attrs:{cx:200,cy:230,r:22}, fill:'#171717'},
+    {el:'circle', attrs:{cx:312,cy:230,r:22}, fill:'#171717'}
+];
+
+const GRID = 8; // 8×8 = 64 块
+const SIZE = 512;
+const CELL = SIZE / GRID;
+
+const svgNS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('logoSvg');
+const wrap = document.getElementById('logoWrap');
+
+// 创建 defs 里的 clipPath 和原始 logo
+const defs = document.createElementNS(svgNS,'defs');
+svg.appendChild(defs);
+
+// 渲染原始 logo 到一个 <g id="logoSource">
+const logoSource = document.createElementNS(svgNS,'g');
+logoSource.setAttribute('id','logoSource');
+LOGO_PARTS.forEach(p=>{
+    const el = document.createElementNS(svgNS,p.el);
+    Object.entries(p.attrs).forEach(([k,v])=>el.setAttribute(k,v));
+    el.setAttribute('fill',p.fill);
+    logoSource.appendChild(el);
+});
+defs.appendChild(logoSource);
+
+// 为每个格子创建 clipPath
+const cells = [];
+for(let row=0;row<GRID;row++){
+    for(let col=0;col<GRID;col++){
+        const id = `clip-${row}-${col}`;
+        const cp = document.createElementNS(svgNS,'clipPath');
+        cp.setAttribute('id',id);
+        const rect = document.createElementNS(svgNS,'rect');
+        rect.setAttribute('x',col*CELL);
+        rect.setAttribute('y',row*CELL);
+        rect.setAttribute('width',CELL);
+        rect.setAttribute('height',CELL);
+        cp.appendChild(rect);
+        defs.appendChild(cp);
+
+        // 使用该 clipPath 的 <use>
+        const g = document.createElementNS(svgNS,'g');
+        g.setAttribute('clip-path',`url(#${id})`);
+        g.classList.add('cell');
+        const use = document.createElementNS(svgNS,'use');
+        use.setAttribute('href','#logoSource');
+        g.appendChild(use);
+        svg.appendChild(g);
+        cells.push(g);
+    }
+}
+
+function randomizeCells(){
+    cells.forEach(g=>{
+        const angle = Math.random()*Math.PI*2;
+        const dist = 60 + Math.random()*240;
+        const tx = Math.cos(angle)*dist;
+        const ty = Math.sin(angle)*dist;
+        const ts = 0.2 + Math.random()*0.6;
+        g.style.setProperty('--tx',tx+'px');
+        g.style.setProperty('--ty',ty+'px');
+        g.style.setProperty('--ts',ts);
+    });
+}
+
+function trigger(){
+    randomizeCells();
+    cells.forEach(c=>c.classList.remove('active'));
+    void svg.offsetWidth;
+    cells.forEach((c,i)=>{
+        setTimeout(()=>c.classList.add('active'), i*8);
+    });
+}
+
+wrap.addEventListener('click',trigger);
+document.getElementById('replayBtn').addEventListener('click',trigger);
+
+// 自动播放一次
+setTimeout(trigger,400);
+</script>
+</body>
+</html>

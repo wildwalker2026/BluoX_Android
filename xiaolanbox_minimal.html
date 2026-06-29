@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="description" content="小蓝AI盒子 - 隐私优先的多平台AI助手，支持通义千问、DeepSeek等主流大模型，所有数据本地存储">
+    <title>小蓝AI盒子 - 你的掌上AI工作平台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --content-max-width: 680px;
+            --spacing-large: 4rem;
+            --font-size-body: 18px;
+            --line-height: 1.6;
+            --color-text: #1a1a1a;
+            --color-bg: #ffffff;
+        }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+            font-size: var(--font-size-body);
+            line-height: var(--line-height);
+            -webkit-font-smoothing: antialiased;
+            max-width: var(--content-max-width);
+            margin: 0 auto;
+            padding: 2rem 2rem 4rem;
+            min-height: 100vh;
+        }
+        a { color: inherit; }
+
+        /* ========== NAV ========== */
+        nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4rem;
+        }
+        nav .brand {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #1a1a1a;
+            text-decoration: none;
+            letter-spacing: -0.01em;
+        }
+        nav .links {
+            display: flex;
+            gap: 2rem;
+        }
+        nav .links a {
+            font-size: 0.9rem;
+            font-weight: 400;
+            color: #64748B;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        nav .links a:hover { color: #1a1a1a; }
+
+        /* ========== HERO ========== */
+        .hero { margin-bottom: 4rem; }
+        .hero-logo {
+            width: 150px; height: 150px;
+            margin: 0 auto 2.5rem;
+            cursor: pointer;
+            overflow: visible;
+        }
+        .hero-logo svg { width: 100%; height: 100%; overflow: visible; }
+        .hero-logo .cell { animation: none; }
+        .hero-logo .cell.active {
+            animation: logoFlyOut 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards,
+                       logoFlyBack 0.6s 1.6s cubic-bezier(0.34,1.56,0.64,1) forwards;
+        }
+        @keyframes logoFlyOut {
+            0% { transform: translate(0,0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--tx),var(--ty)) scale(var(--ts)); opacity: 0.3; }
+        }
+        @keyframes logoFlyBack {
+            0% { transform: translate(var(--tx),var(--ty)) scale(var(--ts)); opacity: 0.3; }
+            100% { transform: translate(0,0) scale(1); opacity: 1; }
+        }
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 3.5rem);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            color: #1a1a1a;
+        }
+        .hero .sub {
+            font-size: 1.25rem;
+            color: #64748B;
+            font-weight: 400;
+            margin-bottom: 3rem;
+            line-height: 1.5;
+            max-width: 540px;
+        }
+
+        /* ========== ONE CTA ========== */
+        .cta {
+            display: inline-block;
+            background: #171717;
+            color: #ffffff;
+            padding: 14px 36px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: background 0.15s;
+            border: none;
+            cursor: pointer;
+        }
+        .cta:hover { background: #404040; }
+        .cta-secondary {
+            display: block;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: #64748B;
+            text-decoration: underline;
+            text-underline-offset: 4px;
+        }
+        .cta-secondary:hover { color: #1a1a1a; }
+
+        /* ========== SECTION ========== */
+        section { margin-bottom: 6rem; }
+        section h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            margin-bottom: 1rem;
+            color: #1a1a1a;
+        }
+        section p {
+            color: #404040;
+            margin-bottom: 1.5rem;
+        }
+
+        /* ========== FEATURES - minimal list style ========== */
+        .feature-list {
+            list-style: none;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem 3rem;
+        }
+        @media (max-width: 520px) { .feature-list { grid-template-columns: 1fr; } }
+        .feature-list li h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+            color: #1a1a1a;
+            letter-spacing: -0.01em;
+        }
+        .feature-list li p {
+            font-size: 0.9rem;
+            color: #64748B;
+            margin-bottom: 0;
+            line-height: 1.5;
+        }
+
+        /* ========== CROSS-DEVICE ========== */
+
+        .whatsnew {
+            border-top: 1px solid #E5E5E5;
+            padding-top: 1.5rem;
+            font-size: 0.85rem;
+            color: #64748B;
+            line-height: 1.7;
+        }
+        .whatsnew a { color: #A16207; text-decoration: underline; text-underline-offset: 3px; }
+        .whatsnew a:hover { color: #171717; }
+        .whatsnew .tag {
+            display: inline-block;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 1px 7px;
+            border-radius: 3px;
+            background: #E8ECF0;
+            color: #404040;
+            margin-right: 6px;
+            letter-spacing: 0.03em;
+        }
+
+        /* ========== FOOTER ========== */
+        footer {
+            margin-top: 8rem;
+            padding-top: 2rem;
+            border-top: 1px solid #E5E5E5;
+            font-size: 0.8rem;
+            color: #64748B;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        footer a { text-decoration: underline; text-underline-offset: 3px; color: #64748B; }
+        footer a:hover { color: #1a1a1a; }
+        footer .social { display: flex; gap: 1.5rem; }
+
+        /* ========== MODAL ========== */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: 100;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden; pointer-events: none;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+        .modal-overlay.active { opacity: 1; visibility: visible; pointer-events: auto; }
+        .modal-box {
+            background: #ffffff;
+            max-width: 420px; width: 90%;
+            padding: 2rem;
+            border: 1px solid #E5E5E5;
+            position: relative;
+        }
+        .modal-box h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1.5rem; }
+        .modal-close {
+            position: absolute; top: 1rem; right: 1.2rem;
+            background: none; border: none; font-size: 1.3rem;
+            color: #64748B; cursor: pointer;
+        }
+        .modal-close:hover { color: #1a1a1a; }
+        .modal-box label { display: block; font-size: 0.8rem; color: #404040; margin: 0.8rem 0 0.3rem; font-weight: 500; }
+        .modal-box label:first-of-type { margin-top: 0; }
+        .modal-box input, .modal-box textarea {
+            width: 100%; padding: 10px 12px;
+            border: 1px solid #E5E5E5;
+            font-family: inherit; font-size: 0.85rem;
+            outline: none; resize: vertical;
+        }
+        .modal-box input:focus, .modal-box textarea:focus { border-color: #171717; }
+        .modal-box .cta { margin-top: 1.5rem; width: 100%; text-align: center; }
+        .modal-hint { margin-top: 0.75rem; font-size: 0.78rem; text-align: center; }
+        .modal-hint.success { color: #16A34A; }
+        .modal-hint.error { color: #DC2626; }
+
+        /* ========== QR ========== */
+        .qr-wrap { position: relative; display: inline; cursor: pointer; }
+        .qr-pop {
+            position: absolute; bottom: 120%; left: 50%;
+            transform: translateX(-50%);
+            background: #fff; border: 1px solid #E5E5E5;
+            padding: 8px; opacity: 0; visibility: hidden;
+            pointer-events: none; transition: all 0.2s;
+            white-space: nowrap; z-index: 50;
+        }
+        .qr-pop img { display: block; width: 160px; height: 160px; }
+        .qr-pop.douyin img { width: 200px; height: 298px; }
+        .qr-pop.qq img { width: 200px; height: 355px; }
+        .qr-wrap:hover .qr-pop { opacity: 1; visibility: visible; bottom: 130%; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="#" class="brand">小蓝AI盒子</a>
+    <div class="links">
+        <a href="#features">功能</a>
+        <a href="https://www.xiaolanbox.com/howtouse/" target="_blank">文档</a>
+        <a href="javascript:void(0)" id="navFeedback">反馈</a>
+    </div>
+</nav>
+
+<main>
+    <!-- ====== HERO ====== -->
+    <div class="hero">
+        <div class="hero-logo" id="heroLogo">
+            <svg id="logoAnimSvg" viewBox="0 0 512 512"></svg>
+        </div>
+        <h1>一台手机，<br>即可 VibeCoding</h1>
+        <p class="sub">
+            小蓝AI盒子（BluoX）是隐私优先的 AI 工作平台。
+            支持 DeepSeek、通义千问等主流大模型，所有数据本地存储。
+        </p>
+        <!-- ONE PRIMARY CTA ONLY -->
+        <a href="https://github.com/wildwalker2026/Bluox_android/releases/latest" class="cta" target="_blank">
+            下载 Android 版
+        </a>
+        <a href="https://github.com/wildwalker2026/Bluox_pc/releases/latest" class="cta-secondary" target="_blank">
+            也可下载 Windows 客户端「龙虾」 →
+        </a>
+    </div>
+
+    <!-- ====== WHAT IT DOES ====== -->
+    <section>
+        <h2>它能做什么</h2>
+        <p>AI 读写文件、编辑代码、搜索网页、执行终端命令——一台手机，完成你以前需要电脑才能做的事。</p>
+    </section>
+
+    <!-- ====== FEATURES ====== -->
+    <section id="features">
+        <h2>核心特性</h2>
+        <ul class="feature-list">
+            <li>
+                <h3>多平台聚合</h3>
+                <p>通义千问、DeepSeek、豆包、智谱清言，一个入口畅聊所有 AI。</p>
+            </li>
+            <li>
+                <h3>工具调用</h3>
+                <p>AI 自主读写文件、编辑代码、搜索网页，敏感操作弹卡片确认，全程透明。</p>
+            </li>
+            <li>
+                <h3>终端集成</h3>
+                <p>搭配 Termux，在手机上编译项目、运行脚本，真正实现移动端编码。</p>
+            </li>
+            <li>
+                <h3>隐私安全</h3>
+                <p>100% 本地存储，零数据上传。你的对话只属于你自己。</p>
+            </li>
+            <li>
+                <h3>本地知识库</h3>
+                <p>上传文档构建专属知识库，离线也能检索。</p>
+            </li>
+            <li>
+                <h3>跨设备协同</h3>
+                <p>手机发指令，电脑执行。远程操控，高效协作。</p>
+            </li>
+        </ul>
+    </section>
+
+    <!-- ====== WHAT'S NEW ====== -->
+    <section>
+        <h2>最近更新</h2>
+        <div class="whatsnew">
+            <p style="margin-bottom:0.5rem;font-weight:500;color:#404040;">手机端 v1.3.12</p>
+            <span class="tag">新增</span>Skill 系统上线：动态加载可执行工具和参考文档<br>
+            <span class="tag">新增</span>工具调用详情弹窗支持 git diff 可视化渲染<br>
+            <span class="tag">新增</span>支持自定义数据目录前缀，路径均可动态配置<br>
+            <span class="tag">新增</span>解除 DeepSeek thinking 与 tools 互斥限制<br>
+            <span class="tag">优化</span>底部菜单选中状态高亮，消息操作按钮布局调整<br>
+            <span class="tag">修复</span>版本保存来源修正、级联删除匹配修正<br><br>
+            <p style="margin-bottom:0.5rem;font-weight:500;color:#404040;">PC端 v0.1.5</p>
+            <span class="tag">新增</span>截图功能（截图可固定在桌面上）<br>
+            <span class="tag">修复</span>修复已知问题，提升稳定性<br><br>
+            更多详情见
+            <a href="https://github.com/wildwalker2026/Bluox_android/releases" target="_blank">GitHub Releases →</a>
+        </div>
+    </section>
+
+    <!-- ====== START ====== -->
+    <section>
+        <h2>开始使用</h2>
+        <p>支持 Android 8.0 及以上，也提供 Windows 客户端。</p>
+        <a href="https://github.com/wildwalker2026/Bluox_android/releases/latest" class="cta" target="_blank">
+            下载 Android 版
+        </a>
+        <a href="https://www.bilibili.com/video/BV1KDdPBcE1Z" class="cta-secondary" target="_blank">
+            B站教程：如何获取 API KEY →
+        </a>
+    </section>
+</main>
+
+<footer>
+    <div>
+        <strong style="color:#1a1a1a;">小蓝AI盒子</strong>
+        &nbsp;© 2026 新蓝域（广州）科技有限责任公司
+    </div>
+    <div class="social">
+        <a href="https://xiaolanbox.com/right/web_privacy.html" target="_blank">隐私政策</a>
+        <a href="https://xiaolanbox.com/right/web_terms.html" target="_blank">服务条款</a>
+        <a href="https://beian.miit.gov.cn/" target="_blank">粤ICP备2026039790号-2</a>
+        <a href="https://www.xiaohongshu.com/user/profile/615d7a1c0000000002018733" target="_blank">小红书</a>
+        <span class="qr-wrap">
+            <span style="text-decoration:underline;text-underline-offset:3px;cursor:pointer;">抖音</span>
+            <span class="qr-pop douyin"><img src="抖音二维码.png" alt="抖音二维码"></span>
+        </span>
+        <span style="color:#64748B;">QQ群 284957094</span>
+    </div>
+</footer>
+
+<!-- Feedback Modal -->
+<div class="modal-overlay" id="feedbackModal">
+    <div class="modal-box">
+        <button class="modal-close" id="feedbackClose">&times;</button>
+        <h3>提交反馈</h3>
+        <p style="font-size:0.85rem;color:#64748B;margin-bottom:1rem;">也可加入QQ群反馈：284957094</p>
+        <form id="feedbackForm">
+            <label for="fbContact">联系方式</label>
+            <input type="text" id="fbContact" placeholder="邮箱 / 手机号 / 微信号" maxlength="50" required>
+            <label for="fbContent">反馈内容</label>
+            <textarea id="fbContent" rows="4" placeholder="请描述你的问题或建议" maxlength="500" required></textarea>
+            <button type="submit" class="cta">提交反馈</button>
+            <p class="modal-hint" id="feedbackHint"></p>
+        </form>
+    </div>
+</div>
+
+<script>
+// === Logo grid animation ===
+(function(){
+    var LOGO=[{el:'rect',attrs:{width:512,height:512,rx:100},fill:'#171717'},{el:'rect',attrs:{x:90,y:130,width:332,height:200,rx:30},fill:'#FFFFFF'},{el:'polygon',attrs:{points:'150,326 200,326 130,400'},fill:'#FFFFFF'},{el:'circle',attrs:{cx:200,cy:230,r:22},fill:'#171717'},{el:'circle',attrs:{cx:312,cy:230,r:22},fill:'#171717'}];
+    var GRID=8,SIZE=512,CELL=SIZE/GRID,svgNS='http://www.w3.org/2000/svg';
+    var svg=document.getElementById('logoAnimSvg'),wrap=document.getElementById('heroLogo');
+    var defs=document.createElementNS(svgNS,'defs');svg.appendChild(defs);
+    var src=document.createElementNS(svgNS,'g');src.setAttribute('id','logoSrc');
+    LOGO.forEach(function(p){var e=document.createElementNS(svgNS,p.el);Object.keys(p.attrs).forEach(function(k){e.setAttribute(k,p.attrs[k])});e.setAttribute('fill',p.fill);src.appendChild(e)});
+    defs.appendChild(src);
+    var cells=[];
+    for(var r=0;r<GRID;r++)for(var c=0;c<GRID;c++){
+        var id='lc-'+r+'-'+c,cp=document.createElementNS(svgNS,'clipPath');cp.setAttribute('id',id);
+        var rect=document.createElementNS(svgNS,'rect');
+        rect.setAttribute('x',c*CELL);rect.setAttribute('y',r*CELL);rect.setAttribute('width',CELL);rect.setAttribute('height',CELL);
+        cp.appendChild(rect);defs.appendChild(cp);
+        var g=document.createElementNS(svgNS,'g');g.setAttribute('clip-path','url(#'+id+')');g.classList.add('cell');
+        var u=document.createElementNS(svgNS,'use');u.setAttribute('href','#logoSrc');g.appendChild(u);
+        svg.appendChild(g);cells.push(g);
+    }
+    function randCells(){cells.forEach(function(g){var a=Math.random()*Math.PI*2,d=60+Math.random()*240;g.style.setProperty('--tx',(Math.cos(a)*d)+'px');g.style.setProperty('--ty',(Math.sin(a)*d)+'px');g.style.setProperty('--ts',(0.2+Math.random()*0.6))})}
+    function trigger(){randCells();cells.forEach(function(c){c.classList.remove('active')});void svg.offsetWidth;cells.forEach(function(c,i){setTimeout(function(){c.classList.add('active')},i*8)})}
+    wrap.addEventListener('click',trigger);setTimeout(trigger,600);
+})();
+
+// === Feedback modal ===
+(function(){
+    var m=document.getElementById('feedbackModal'),
+        f=document.getElementById('feedbackForm'),
+        h=document.getElementById('feedbackHint'),
+        c=document.getElementById('feedbackClose'),
+        n=document.getElementById('navFeedback');
+    n.addEventListener('click',function(e){e.preventDefault();h.textContent='';h.className='modal-hint';
+        fetch('/api/feedback/count').then(function(r){return r.json()}).then(function(d){
+            if(d.count>=d.max){h.textContent='今日反馈次数已达上限（'+d.max+'次/天）';h.className='modal-hint error'}
+            m.classList.add('active')
+        }).catch(function(){m.classList.add('active')})});
+    c.addEventListener('click',function(){m.classList.remove('active')});
+    if(location.hash==='#feedback')n.click();
+    m.addEventListener('click',function(e){if(e.target===m)m.classList.remove('active')});
+    f.addEventListener('submit',function(e){e.preventDefault();
+        var a=document.getElementById('fbContact').value.trim(),
+            b=document.getElementById('fbContent').value.trim();
+        if(!a||!b){h.textContent='请填写完整信息';h.className='modal-hint error';return}
+        fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contact:a,content:b})})
+            .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'提交失败');return d})})
+            .then(function(){h.textContent='反馈已提交，感谢你的建议';h.className='modal-hint success';f.reset()})
+            .catch(function(err){h.textContent=err.message;h.className='modal-hint error'})});
+})();
+</script>
+</body>
+</html>
