@@ -2242,7 +2242,7 @@ function restoreTopicUsageInfo() {
         infoTrigger.innerHTML = ICONS.info + '<span class="info-tooltip-content token-info-tooltip"></span>';
         const actionsDiv = lastAiDiv.querySelector('.message-actions');
         if (actionsDiv) {
-            actionsDiv.insertBefore(infoTrigger, actionsDiv.firstChild);
+            actionsDiv.appendChild(infoTrigger);
         }
     }
     const tooltip = infoTrigger.querySelector('.token-info-tooltip');
@@ -6619,13 +6619,12 @@ function appendMessage(role, content, animate = true, showRefresh = false, times
                 ${annotations && annotations.length > 0 ? generateAnnotationsHtml(annotations) : ''}
             </div>
             ${role === 'assistant' || role === 'ai' ? '<div class="message-bottom-row">' +
-            '<span class="message-model-name">' + (modelLabel || '') + '</span>' +
             '<div class="message-actions">' +
-            
-            '<button class="message-action-btn copy-btn" title="复制">' + ICONS.copy + '</button>' +
-            '<button class="message-action-btn edit-btn" title="编辑">' + ICONS.edit + '</button>' +
             '<button class="message-action-btn delete-btn" title="删除">' + ICONS.delete + '</button>' +
+            '<button class="message-action-btn edit-btn" title="编辑">' + ICONS.edit + '</button>' +
+            '<button class="message-action-btn copy-btn" title="复制">' + ICONS.copy + '</button>' +
             '</div>' +
+            '<span class="message-model-name">' + (modelLabel || '') + '</span>' +
             '</div>' : '<div class="message-actions">' +
             '<button class="message-action-btn resend-btn" title="重新发送">' + ICONS.resend + '</button>' +
             '<button class="message-action-btn copy-btn" title="复制">' + ICONS.copy + '</button>' +
@@ -6775,12 +6774,12 @@ function appendMessage_load(role, content, animate = true, showRefresh = false, 
                 ${annotations && annotations.length > 0 ? generateAnnotationsHtml(annotations) : ''}
             </div>
             ${role === 'assistant' || role === 'ai' ? '<div class="message-bottom-row">' +
-            '<span class="message-model-name">' + (modelLabel || '') + '</span>' +
             '<div class="message-actions">' +
-            '<button class="message-action-btn copy-btn" title="复制">' + ICONS.copy + '</button>' +
-            '<button class="message-action-btn edit-btn" title="编辑">' + ICONS.edit + '</button>' +
             '<button class="message-action-btn delete-btn" title="删除">' + ICONS.delete + '</button>' +
+            '<button class="message-action-btn edit-btn" title="编辑">' + ICONS.edit + '</button>' +
+            '<button class="message-action-btn copy-btn" title="复制">' + ICONS.copy + '</button>' +
             '</div>' +
+            '<span class="message-model-name">' + (modelLabel || '') + '</span>' +
             '</div>' : '<div class="message-actions">' +
             '<button class="message-action-btn resend-btn" title="重新发送">' + ICONS.resend + '</button>' +
             '<button class="message-action-btn copy-btn" title="复制">' + ICONS.copy + '</button>' +
@@ -12132,7 +12131,7 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
             infoTrigger.innerHTML = ICONS.info + '<span class="info-tooltip-content token-info-tooltip"></span>';
             const actionsDiv = currentAiMessageDiv.querySelector('.message-actions');
             if (actionsDiv) {
-                actionsDiv.insertBefore(infoTrigger, actionsDiv.firstChild);
+                actionsDiv.appendChild(infoTrigger);
             }
             tooltip = infoTrigger.querySelector('.token-info-tooltip');
         }
@@ -13444,8 +13443,8 @@ async function deleteMessage(messageDiv, index) {
         messageData.versions.forEach(v => { if (v.id) searchIds.push(v.id); });
     }
     messages.splice(actualIndex, 1);  // 先删除起始消息
-    // 从 actualIndex 开始往后级联查找，避免因重复 id 反向追溯误删前面的消息
-    const cascadedCount = cascadeDeleteMessages(searchIds, actualIndex);
+    const cascadedCount = cascadeDeleteMessages(searchIds, 0);
+    const deleteCount = cascadedCount + 1;  // +1 是起始消息本身
 
     updateCacheOptimizeCount();
 
