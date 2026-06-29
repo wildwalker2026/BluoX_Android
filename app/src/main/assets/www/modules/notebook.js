@@ -792,20 +792,26 @@
 
         try {
             var json = window.AndroidBridge.scanSkillsDir();
-            var skillNames = JSON.parse(json);
+            var skillEntries = JSON.parse(json);
 
             // 清空列表（去掉加载中提示）
             notebookList.innerHTML = '';
 
-            if (!skillNames || skillNames.length === 0) {
+            if (!skillEntries || skillEntries.length === 0) {
                 notebookList.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-secondary,#888);font-size:14px;">暂无 Skill<br><span style="font-size:12px;">请将 skill 放入 Downloads/Bluox/Skills/ 目录</span></div>';
                 return;
             }
 
-            for (var i = 0; i < skillNames.length; i++) {
-                var name = skillNames[i];
+            // 兼容旧格式：如果是字符串数组，转成对象数组
+            if (typeof skillEntries[0] === 'string') {
+                skillEntries = skillEntries.map(function(name) { return { name: name }; });
+            }
+
+            for (var i = 0; i < skillEntries.length; i++) {
+                var entry = skillEntries[i];
+                var name = entry.name;
                 var skillMd = window.AndroidBridge.readSkillFile(name);
-                var hasExecutor = skillMd && skillMd.indexOf('runtime:') !== -1;
+                var hasExecutor = skillMd && (skillMd.indexOf('runtime:') !== -1 || entry.hasRuntimeConf);
                 var displayName = name;
                 var desc = '';
 

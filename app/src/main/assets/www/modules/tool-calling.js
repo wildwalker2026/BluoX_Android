@@ -398,7 +398,7 @@ function getToolDefinitions() {
             type: "function",
             function: {
                 name: "execute_command",
-                description: "执行系统命令（shell命令）。手机本地使用 Android 系统 Shell，连接电脑后在电脑端执行。",
+                description: "执行系统命令（shell命令）。复杂命令使用run_termux工具，比如node py java git。手机本地使用 Android 系统 Shell，连接电脑后可在电脑端执行。",
                 parameters: {
                     type: "object",
                     properties: {

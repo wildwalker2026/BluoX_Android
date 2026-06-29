@@ -227,54 +227,104 @@ async function scanSkills() {
     }
 
     const dirListJson = window.AndroidBridge.scanSkillsDir();
-    let skillNames;
+    console.log('[SkillLoader] scanSkillsDir 原始返回:', dirListJson);
+    let skillEntries;
     try {
-        skillNames = JSON.parse(dirListJson);
+        skillEntries = JSON.parse(dirListJson);
+        console.log('[SkillLoader] 解析后:', JSON.stringify(skillEntries));
+        console.log('[SkillLoader] 第一个元素类型:', typeof skillEntries[0]);
+        if (typeof skillEntries[0] === 'object') {
+            console.log('[SkillLoader] 第一个元素字段:', Object.keys(skillEntries[0]));
+        }
     } catch (e) {
         console.error('[SkillLoader] 解析 skill 目录列表失败:', e);
         return [];
     }
 
-    if (!Array.isArray(skillNames) || skillNames.length === 0) {
+    if (!Array.isArray(skillEntries) || skillEntries.length === 0) {
         console.log('[SkillLoader] 未找到任何 skill');
         return [];
     }
 
+    // 兼容旧格式：如果是字符串数组，转成对象数组
+    // 同时主动检测 execute.sh 和 runtime.conf 是否存在
+    if (typeof skillEntries[0] === 'string') {
+        skillEntries = skillEntries.map(function(name) {
+            var hasRuntimeConf = false;
+            var hasExecuteSh = false;
+            if (window.AndroidBridge && typeof window.AndroidBridge.readSkillDirFile === 'function') {
+                hasRuntimeConf = window.AndroidBridge.readSkillDirFile(name, 'runtime.conf') !== '';
+                hasExecuteSh = window.AndroidBridge.readSkillDirFile(name, 'execute.sh') !== '';
+            } else {
+                // readSkillDirFile 不可用（旧版 APK），通过 SKILL.md 内容推断
+                var md = window.AndroidBridge && window.AndroidBridge.readSkillFile(name);
+                if (md) {
+                    // 有 runtime.conf 关键词或 execute.sh 引用，视为可执行
+                    hasRuntimeConf = md.indexOf('runtime.conf') !== -1 || md.indexOf('Runtime:') !== -1;
+                    hasExecuteSh = md.indexOf('execute.sh') !== -1;
+                }
+            }
+            return { name: name, hasExecuteSh: hasExecuteSh, hasRuntimeConf: hasRuntimeConf };
+        });
+    }
+
     const skills = [];
-    for (const name of skillNames) {
+    for (const entry of skillEntries) {
+        const dirName = entry.name;
         try {
             // 读取 SKILL.md
-            const content = window.AndroidBridge.readSkillFile(name);
+            const content = window.AndroidBridge.readSkillFile(dirName);
             if (!content) {
-                console.warn('[SkillLoader] 读取 SKILL.md 失败:', name);
+                console.warn('[SkillLoader] 读取 SKILL.md 失败:', dirName);
                 continue;
             }
 
             const { header, body } = parseSkillMd(content);
             if (!header || !header.name) {
-                console.warn('[SkillLoader] SKILL.md 缺少 name 字段:', name);
+                console.warn('[SkillLoader] SKILL.md 缺少 name 字段:', dirName);
                 continue;
             }
 
-            // 检查是否有 execute.sh（决定是否注册为可调用工具）
-            const hasExecutor = window.AndroidBridge.readSkillFile(name + '/execute.sh') !== '';
-            // 或者通过另一种方式检测：尝试读取 execute.sh
-            // 简单方案：检查 SKILL.md 中是否包含 runtime 字段
-            const hasRuntime = !!header.runtime;
+            // 判定是否为可执行工具：有 execute.sh 或 runtime.conf 或 YAML 头中有 runtime 字段
+            const hasExecutor = !!header.runtime || entry.hasExecuteSh || entry.hasRuntimeConf;
+            console.log('[SkillLoader] skill:', dirName, 'hasExecutor:', hasExecutor, 'hasRuntimeConf:', entry.hasRuntimeConf, 'hasExecuteSh:', entry.hasExecuteSh, 'header.runtime:', header.runtime);
+
+            // 检测 skill 模式：
+            // - 'parameters' 模式：SKILL.md 有 parameters 字段，AI 传结构化参数
+            // - 'cli' 模式：有 runtime.conf 但无 parameters，AI 传 command 字符串
+            const hasParameters = !!header.parameters;
+            const skillMode = hasParameters ? 'parameters' : (entry.hasRuntimeConf ? 'cli' : 'reference');
+
+            // cli 模式：读取 runtime.conf 获取命令前缀
+            let cliCommand = null;
+            if (skillMode === 'cli') {
+                const runtimeConf = window.AndroidBridge.readSkillDirFile(dirName, 'runtime.conf');
+                if (runtimeConf) {
+                    const match = runtimeConf.match(/^Command:\s*(.+)$/m);
+                    if (match) {
+                        cliCommand = match[1].trim();
+                    }
+                }
+                if (!cliCommand) {
+                    console.warn('[SkillLoader] runtime.conf 读取失败或缺少 Command 字段:', dirName);
+                }
+            }
 
             const skill = {
                 name: header.name,
                 description: header.description || '',
                 runtime: header.runtime || 'builtin',
                 parameters: header.parameters || null,
-                hasExecutor: hasRuntime,  // 有 runtime 字段说明有执行脚本
+                hasExecutor: hasExecutor,
+                skillMode: skillMode,
+                cliCommand: cliCommand,
                 body: body,
-                dir: SKILLS_DIR + '/' + name,
-                dirName: name
+                dir: SKILLS_DIR + '/' + dirName,
+                dirName: dirName
             };
 
             skills.push(skill);
-            const tag = skill.hasExecutor ? '(可执行, runtime: ' + skill.runtime + ')' : '(参考文档)';
+            const tag = skill.hasExecutor ? '(可执行, mode: ' + skill.skillMode + ')' : '(参考文档)';
         } catch (e) {
             console.error('[SkillLoader] 加载 skill 失败:', name, e);
         }
@@ -290,16 +340,45 @@ async function scanSkills() {
  * @returns {Array} tools 数组
  */
 function getSkillToolDefinitions() {
-    return scannedSkills
-        .filter(skill => skill.hasExecutor && skill.parameters)
-        .map(skill => ({
-            type: 'function',
-            function: {
-                name: skill.name,
-                description: skill.description,
-                parameters: skill.parameters
+    console.log('[SkillLoader] getSkillToolDefinitions 被调用, scannedSkills:', scannedSkills.length, '个');
+    console.log('[SkillLoader] scannedSkills:', JSON.stringify(scannedSkills.map(function(s) { return { name: s.name, hasExecutor: s.hasExecutor, skillMode: s.skillMode }; })));
+    var result = scannedSkills
+        .filter(skill => skill.hasExecutor && (skill.skillMode === 'parameters' || skill.skillMode === 'cli'))
+        .map(skill => {
+            console.log('[SkillLoader] 注册工具:', skill.name, 'mode:', skill.skillMode);
+            if (skill.skillMode === 'parameters') {
+                // 模式 A：结构化参数，AI 传 JSON 对象
+                return {
+                    type: 'function',
+                    function: {
+                        name: skill.name,
+                        description: skill.description,
+                        parameters: skill.parameters
+                    }
+                };
+            } else {
+                // 模式 B：CLI 模式，AI 传 command 字符串
+                return {
+                    type: 'function',
+                    function: {
+                        name: skill.name,
+                        description: skill.description + '\n\n用法：直接传入要执行的命令行参数。\n例如：search "量子计算" --max_results 5',
+                        parameters: {
+                            type: 'object',
+                            properties: {
+                                command: {
+                                    type: 'string',
+                                    description: '要执行的命令行参数（不包含脚本路径，只传子命令和选项）'
+                                }
+                            },
+                            required: ['command']
+                        }
+                    }
+                };
             }
-        }));
+        });
+    console.log('[SkillLoader] getSkillToolDefinitions 返回:', result.length, '个工具');
+    return result;
 }
 
 /**
@@ -313,26 +392,32 @@ async function executeSkill(toolName, args) {
     if (!skill) return null;
     if (!skill.hasExecutor) return null;  // 参考文档类 skill，不可执行
 
-    console.log('[SkillLoader] 执行 skill:', toolName, 'args:', JSON.stringify(args));
+    console.log('[SkillLoader] 执行 skill:', toolName, 'mode:', skill.skillMode, 'args:', JSON.stringify(args));
 
-    // 构建执行命令
-    const argsJson = JSON.stringify(args || {});
-    const scriptPath = skill.dir + '/execute.sh';
-    const command = `sh "${scriptPath}" '${argsJson.replace(/'/g, "'\\''")}'`;
-
-    if (skill.runtime === 'termux') {
-        // 走 Termux 通道
-        if (!window.AndroidBridge || typeof window.AndroidBridge.runTermuxCommand !== 'function') {
-            return '⚠️ 此 skill 需要 Termux 环境，但当前版本不支持。';
+    let command;
+    if (skill.skillMode === 'cli') {
+        // CLI 模式：从 runtime.conf 读取命令前缀，拼接 AI 传的 command 参数
+        if (!skill.cliCommand) {
+            return '⚠️ Skill 缺少 CLI 命令配置（runtime.conf 中未找到 Command 字段）';
         }
-        return await executeViaTermux(command, skill.dir);
+        const cmdArgs = (args && args.command) || '';
+        command = `${skill.cliCommand} ${cmdArgs}`;
     } else {
-        // 走内置终端（默认）
-        if (!window.AndroidBridge || typeof window.AndroidBridge.executeLocalCommandAsync !== 'function') {
-            return '⚠️ 当前环境不支持执行命令。';
-        }
-        return await executeViaBuiltin(command);
+        // parameters 模式：传 JSON 给 execute.sh
+        const argsJson = JSON.stringify(args || {});
+        const scriptPath = skill.dir + '/execute.sh';
+        command = `sh "${scriptPath}" '${argsJson.replace(/'/g, "'\\''")}'`;
     }
+
+    // 所有 skill 执行默认走 Termux 通道（Android 系统没有 python/node 等运行时）
+    if (window.AndroidBridge && typeof window.AndroidBridge.runTermuxCommand === 'function') {
+        return await executeViaTermux(command, skill.dir);
+    }
+    // fallback：走内置终端
+    if (!window.AndroidBridge || typeof window.AndroidBridge.executeLocalCommandAsync !== 'function') {
+        return '⚠️ 当前环境不支持执行命令。';
+    }
+    return await executeViaBuiltin(command);
 }
 
 /**
@@ -367,8 +452,6 @@ async function executeViaBuiltin(command) {
  * 通过 Termux 执行命令
  */
 async function executeViaTermux(command, workdir) {
-    const callbackId = 'skill_tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-
     // 确保回调注册表存在
     if (!window._termuxCallbacks) {
         window._termuxCallbacks = {};
@@ -384,13 +467,18 @@ async function executeViaTermux(command, workdir) {
     return new Promise((resolve) => {
         let resolved = false;
 
+        // 使用 Native 返回的 callbackId，确保回调能匹配
+        const callbackId = window.AndroidBridge.runTermuxCommand(command, workdir || '', 60);
+        if (!callbackId) {
+            resolve('⚠️ Termux 命令发送失败');
+            return;
+        }
+
         window._termuxCallbacks[callbackId] = (result) => {
             if (resolved) return;
             resolved = true;
             resolve(formatSkillResult(result));
         };
-
-        window.AndroidBridge.runTermuxCommand(command, workdir, 60);
 
         // 超时保护
         setTimeout(() => {
@@ -451,4 +539,6 @@ async function initSkillLoader() {
     }
 }
 
-console.log('[SkillLoader] 模块已加载');
+// 模块加载时自动初始化
+console.log('[SkillLoader] 模块已加载，开始自动初始化...');
+initSkillLoader();

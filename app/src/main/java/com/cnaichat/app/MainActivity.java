@@ -4632,8 +4632,8 @@ public class MainActivity extends Activity {
             // ========== Skill 系统 ==========
 
             /**
-             * 扫描 Skills 目录，返回所有 skill 子目录名列表
-             * @return JSON 数组 ["skill-name-1", "skill-name-2", ...]
+             * 扫描 Skills 目录，返回所有 skill 的详细信息
+             * @return JSON 数组 [{"name":"anysearch","hasExecuteSh":false,"hasRuntimeConf":true}, ...]
              */
             @JavascriptInterface
             public String scanSkillsDir() {
@@ -4650,7 +4650,11 @@ public class MainActivity extends Activity {
                             // 只包含有 SKILL.md 的目录
                             File skillMd = new File(f, "SKILL.md");
                             if (skillMd.exists() && skillMd.isFile()) {
-                                arr.put(f.getName());
+                                org.json.JSONObject obj = new org.json.JSONObject();
+                                obj.put("name", f.getName());
+                                obj.put("hasExecuteSh", new File(f, "execute.sh").exists());
+                                obj.put("hasRuntimeConf", new File(f, "runtime.conf").exists());
+                                arr.put(obj);
                             }
                         }
                     }
@@ -4689,6 +4693,41 @@ public class MainActivity extends Activity {
                     return sb.toString();
                 } catch (Exception e) {
                     Log.e("Skill", "读取SKILL.md失败: " + e.getMessage());
+                    return "";
+                }
+            }
+
+            /**
+             * 读取 skill 目录下指定文件的内容（如 runtime.conf）
+             * @param skillName skill 目录名
+             * @param fileName 文件名（如 "runtime.conf"）
+             * @return 文件内容，失败返回空字符串
+             */
+            @JavascriptInterface
+            public String readSkillDirFile(String skillName, String fileName) {
+                try {
+                    if (skillName == null || skillName.isEmpty()) return "";
+                    if (fileName == null || fileName.isEmpty()) return "";
+                    // 安全检查：防止路径穿越
+                    String safeName = skillName.replaceAll("[\\/:*?\"<>|]", "_").trim();
+                    String safeFile = fileName.replaceAll("[\\/:*?\"<>|]", "_").trim();
+                    if (safeName.isEmpty() || safeFile.isEmpty()) return "";
+                    File skillDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Bluox/Skills/" + safeName);
+                    File targetFile = new File(skillDir, safeFile);
+                    if (!targetFile.exists() || !targetFile.isFile()) return "";
+                    java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(new java.io.FileInputStream(targetFile), "UTF-8")
+                    );
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (sb.length() > 0) sb.append("\n");
+                        sb.append(line);
+                    }
+                    reader.close();
+                    return sb.toString();
+                } catch (Exception e) {
+                    Log.e("Skill", "读取 " + fileName + " 失败: " + e.getMessage());
                     return "";
                 }
             }
