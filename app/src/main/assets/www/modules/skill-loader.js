@@ -37,6 +37,44 @@ let scannedSkills = [];
 /** Skills 目录路径 */
 const SKILLS_DIR = '/storage/emulated/0/Download/Bluox/Skills';
 
+/** 禁用的 skill 名称集合（持久化） */
+let disabledSkills = new Set();
+
+/** 从 localStorage 加载禁用状态 */
+function loadDisabledSkills() {
+    try {
+        const stored = localStorage.getItem('skill_loader_disabled');
+        if (stored) {
+            disabledSkills = new Set(JSON.parse(stored));
+        }
+    } catch (e) {}
+}
+
+/** 保存禁用状态到 localStorage */
+function saveDisabledSkills() {
+    try {
+        localStorage.setItem('skill_loader_disabled', JSON.stringify([...disabledSkills]));
+    } catch (e) {}
+}
+
+/** 切换 skill 启用/禁用 */
+function toggleSkillEnabled(skillName) {
+    if (disabledSkills.has(skillName)) {
+        disabledSkills.delete(skillName);
+    } else {
+        disabledSkills.add(skillName);
+    }
+    saveDisabledSkills();
+}
+
+/** 检查 skill 是否启用 */
+function isSkillEnabled(skillName) {
+    return !disabledSkills.has(skillName);
+}
+
+// 初始化时加载
+loadDisabledSkills();
+
 // ==================== YAML 头解析 ====================
 
 /**
@@ -310,12 +348,14 @@ async function scanSkills() {
                 }
             }
 
+            const enabled = isSkillEnabled(header.name);
             const skill = {
                 name: header.name,
                 description: header.description || '',
                 runtime: header.runtime || 'builtin',
                 parameters: header.parameters || null,
                 hasExecutor: hasExecutor,
+                enabled: enabled,
                 skillMode: skillMode,
                 cliCommand: cliCommand,
                 body: body,
@@ -341,9 +381,9 @@ async function scanSkills() {
  */
 function getSkillToolDefinitions() {
     console.log('[SkillLoader] getSkillToolDefinitions 被调用, scannedSkills:', scannedSkills.length, '个');
-    console.log('[SkillLoader] scannedSkills:', JSON.stringify(scannedSkills.map(function(s) { return { name: s.name, hasExecutor: s.hasExecutor, skillMode: s.skillMode }; })));
+    console.log('[SkillLoader] scannedSkills:', JSON.stringify(scannedSkills.map(function(s) { return { name: s.name, hasExecutor: s.hasExecutor, skillMode: s.skillMode, enabled: s.enabled }; })));
     var result = scannedSkills
-        .filter(skill => skill.hasExecutor && (skill.skillMode === 'parameters' || skill.skillMode === 'cli'))
+        .filter(skill => skill.hasExecutor && skill.enabled !== false && (skill.skillMode === 'parameters' || skill.skillMode === 'cli'))
         .map(skill => {
             console.log('[SkillLoader] 注册工具:', skill.name, 'mode:', skill.skillMode);
             if (skill.skillMode === 'parameters') {

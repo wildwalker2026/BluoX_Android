@@ -791,59 +791,77 @@
         }
 
         try {
-            var json = window.AndroidBridge.scanSkillsDir();
-            var skillEntries = JSON.parse(json);
+            // 从 skill-loader 的 scannedSkills 取数据，确保与工具注册逻辑一致
+            var skills = typeof scannedSkills !== 'undefined' ? scannedSkills : [];
 
             // 清空列表（去掉加载中提示）
             notebookList.innerHTML = '';
 
-            if (!skillEntries || skillEntries.length === 0) {
+            if (!skills || skills.length === 0) {
                 notebookList.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-secondary,#888);font-size:14px;">暂无 Skill<br><span style="font-size:12px;">请将 skill 放入 Downloads/Bluox/Skills/ 目录</span></div>';
                 return;
             }
 
-            // 兼容旧格式：如果是字符串数组，转成对象数组
-            if (typeof skillEntries[0] === 'string') {
-                skillEntries = skillEntries.map(function(name) { return { name: name }; });
-            }
+            for (var i = 0; i < skills.length; i++) {
+                var skill = skills[i];
+                var displayName = skill.name;
+                var hasExecutor = skill.hasExecutor;
+                var isDisabled = typeof isSkillEnabled === 'function' && !isSkillEnabled(displayName);
+                var desc = skill.description || '';
+                if (desc.length > 60) desc = desc.substring(0, 60) + '...';
+                var skillMd = skill.body ? ('---\nname: ' + skill.name + '\ndescription: ' + skill.description + '\n---\n\n' + skill.body) : '';
 
-            for (var i = 0; i < skillEntries.length; i++) {
-                var entry = skillEntries[i];
-                var name = entry.name;
-                var skillMd = window.AndroidBridge.readSkillFile(name);
-                var hasExecutor = skillMd && (skillMd.indexOf('runtime:') !== -1 || entry.hasRuntimeConf);
-                var displayName = name;
-                var desc = '';
-
-                if (skillMd) {
-                    var nameMatch = skillMd.match(/^name:\s*(\S+)/m);
-                    if (nameMatch) displayName = nameMatch[1];
-                    var descMatch = skillMd.match(/^description:\s*(.+)/m);
-                    if (descMatch) {
-                        desc = descMatch[1].trim();
-                        if (desc.length > 60) desc = desc.substring(0, 60) + '...';
-                    }
+                var tag;
+                var tagColor, tagBg;
+                if (!hasExecutor) {
+                    tagColor = '#ff9800'; tagBg = 'rgba(255,152,0,0.12)';
+                    tag = '参考';
+                } else if (isDisabled) {
+                    tagColor = '#9ca3af'; tagBg = 'rgba(156,163,175,0.12)';
+                    tag = '禁用';
+                } else {
+                    tagColor = '#10b981'; tagBg = 'rgba(16,185,129,0.12)';
+                    tag = '可执行';
                 }
-
-                var tag = hasExecutor
-                    ? '<span style="font-size:10px;color:#4caf50;border:1px solid #4caf50;border-radius:2px;padding:0 4px;margin-left:6px;line-height:1.4;display:inline-block;">可执行</span>'
-                    : '<span style="font-size:10px;color:#ff9800;border:1px solid #ff9800;border-radius:2px;padding:0 4px;margin-left:6px;line-height:1.4;display:inline-block;">参考</span>';
 
                 // 复用 agent-item 样式
                 var div = document.createElement('div');
-                div.className = 'agent-item';
+                div.className = 'agent-item' + (hasExecutor && !isDisabled ? ' active' : '');
 
                 var infoDiv = document.createElement('div');
                 infoDiv.className = 'agent-item-info';
-                infoDiv.innerHTML =
-                    '<span class="agent-item-name">' + escapeHtml(displayName) + tag + '</span>' +
-                    (desc ? '<span class="agent-item-desc">' + escapeHtml(desc) + '</span>' : '');
+                // 名称和标签在同一行（与 MCP 一致）
+                var nameRow = document.createElement('div');
+                nameRow.style.cssText = 'display:flex;align-items:center;gap:6px;';
+                var nameSpan = document.createElement('span');
+                nameSpan.className = 'agent-item-name';
+                nameSpan.textContent = displayName;
+                nameRow.appendChild(nameSpan);
+
+                // 标签
+                var tagSpan = document.createElement('span');
+                tagSpan.textContent = tag;
+                tagSpan.style.cssText = 'font-size:10px;padding:1px 6px;border-radius:4px;background:' + tagBg +
+                    ';color:' + tagColor + ';white-space:nowrap;cursor:' + (hasExecutor ? 'pointer' : 'default') + ';flex-shrink:0;';
+                nameRow.appendChild(tagSpan);
+                infoDiv.appendChild(nameRow);
+
+                if (desc) {
+                    var descSpan = document.createElement('span');
+                    descSpan.className = 'agent-item-desc';
+                    descSpan.textContent = desc;
+                    infoDiv.appendChild(descSpan);
+                }
+
                 div.appendChild(infoDiv);
 
-                // 点击打开 SKILL.md 内容
-                div.addEventListener('click', function (n, md) {
-                    return function () {
-                        if (md) {
+                // 点击整行弹出操作菜单（所有 skill 统一）
+                div.addEventListener('click', function (n, disabled, md, exec) {
+                    return function (e) {
+                        if (exec) {
+                            showSkillActionMenu(e, n, disabled);
+                        } else if (md) {
+                            // 参考文档：直接打开查看
                             var body = md.replace(/^---[\s\S]*?---\n?/, '').trim();
                             if (!body) body = md;
                             if (typeof openModalWithFade === 'function') {
@@ -864,7 +882,7 @@
                             }
                         }
                     };
-                }(displayName, skillMd));
+                }(displayName, isDisabled, skillMd, hasExecutor));
 
                 notebookList.appendChild(div);
             }
@@ -891,6 +909,54 @@
                 renderSkillsList();
             }
         });
+    }
+
+    // ==================== Skill 操作菜单 ====================
+
+    /**
+     * 显示 Skill 操作菜单（底部弹出，与 MCP 一致）
+     * @param {Event} e - 点击事件
+     * @param {string} skillName - skill 显示名称
+     * @param {boolean} isDisabled - 当前是否禁用
+     */
+    function showSkillActionMenu(e, skillName, isDisabled) {
+        if (typeof createBottomSheetPicker !== 'function') return;
+        createBottomSheetPicker({
+            items: [
+                { value: 'toggle', label: isDisabled ? '启用' : '禁用' },
+                { value: 'view', label: '查看' },
+            ],
+            onSelect: function (item) {
+                if (item.value === 'toggle') {
+                    if (typeof toggleSkillEnabled === 'function') {
+                        toggleSkillEnabled(skillName);
+                    }
+                    renderSkillsList();
+                } else if (item.value === 'view') {
+                    var md = window.AndroidBridge && window.AndroidBridge.readSkillFile(skillName);
+                    if (md) {
+                        var body = md.replace(/^---[\s\S]*?---\n?/, '').trim();
+                        if (!body) body = md;
+                        if (typeof openModalWithFade === 'function') {
+                            var previewModal = document.getElementById('notebookEditModal');
+                            if (previewModal) {
+                                var titleEl = document.getElementById('notebookEditTitle');
+                                if (titleEl) titleEl.textContent = 'Skill: ' + skillName;
+                                var contentEl = document.getElementById('notebookContent');
+                                if (contentEl) {
+                                    contentEl.innerHTML = '<pre style="white-space:pre-wrap;font-size:13px;line-height:1.6;margin:0;">' + escapeHtml(body) + '</pre>';
+                                }
+                                var textareaEl = document.getElementById('notebookTextarea');
+                                if (textareaEl) textareaEl.style.display = 'none';
+                                var syncBtn = document.getElementById('notebookEditSyncBtn');
+                                if (syncBtn) syncBtn.style.display = 'none';
+                                openModalWithFade(previewModal);
+                            }
+                        }
+                    }
+                }
+            }
+        }).show();
     }
 
     // 暴露给外部调用
