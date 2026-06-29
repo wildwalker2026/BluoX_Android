@@ -5476,6 +5476,7 @@ function createBottomSheetPicker({ items = [], title, onSelect, activeValue, cus
             btn.type = 'button';
             btn.className = 'bs-item bs-item-grid' + (item.className ? ' ' + item.className : '');
             if (item.value === activeValue) btn.classList.add('active');
+            if (item.isActive) btn.classList.add('active');
             let html = '';
             if (item.icon) html += `<span class="bs-item-icon">${item.icon}</span>`;
             html += `<span class="bs-item-label">${item.label}</span>`;
@@ -5500,6 +5501,7 @@ function createBottomSheetPicker({ items = [], title, onSelect, activeValue, cus
             btn.type = 'button';
             btn.className = 'bs-item' + (item.className ? ' ' + item.className : '');
             if (item.value === activeValue) btn.classList.add('active');
+            if (item.isActive) btn.classList.add('active');
             let html = '';
             if (item.icon) html += `<span class="bs-item-icon">${item.icon}</span>`;
             html += `<span>${item.label}</span>`;
@@ -15545,16 +15547,14 @@ function showChatMenuSheet() {
     const isMinimaxM3 = isMinimax && typeof selectedModel !== 'undefined' && selectedModel === 'MiniMax-M3';
     const deepDisabled = (isCustomProvider && !_refProvider) || (isMinimax && !isMinimaxM3) || _refProvider === 'minimax';
     if (!deepDisabled) {
-        const deepLabel = deepThinkingEnabled ? '深度思考 ✓' : '深度思考';
-        items.push({ value: '__deep_thinking__', label: deepLabel, icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 0 0-7 7c0 2 1 3 2 4.5V16a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2.5c1-1.5 2-2.5 2-4.5a7 7 0 0 0-7-7z" /></svg>' });
+        items.push({ value: '__deep_thinking__', label: '深度思考', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 0 0-7 7c0 2 1 3 2 4.5V16a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2.5c1-1.5 2-2.5 2-4.5a7 7 0 0 0-7-7z" /></svg>', isActive: deepThinkingEnabled });
     }
 
     // 网络搜索
     const _effectiveProvider = _refProvider || currentAIProvider;
     const webDisabled = !WEB_SEARCH_PROVIDERS.includes(_effectiveProvider);
     if (!webDisabled) {
-        const webLabel = webSearchEnabled ? '网络搜索 ✓' : '网络搜索';
-        items.push({ value: '__web_search__', label: webLabel, icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>' });
+        items.push({ value: '__web_search__', label: '网络搜索', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>', isActive: webSearchEnabled });
     }
 
     // 传输文件到电脑（仅已连接时显示）
@@ -15566,9 +15566,7 @@ function showChatMenuSheet() {
     items.push({ value: '__new_topic__', label: '新增话题', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>' });
 
     // 沉浸聊天模式
-    const isImmersive = isImmersiveMode();
-    const immersiveLabel = isImmersive ? '沉浸模式 ✓' : '沉浸模式';
-    items.push({ value: '__immersive_mode__', label: immersiveLabel, icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>' });
+    items.push({ value: '__immersive_mode__', label: '沉浸模式', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>', isActive: isImmersiveMode() });
 
     chatMenuSheet = createBottomSheetPicker({
         items,
