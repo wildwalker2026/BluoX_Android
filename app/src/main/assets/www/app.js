@@ -12247,8 +12247,10 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
 
     // 处理版本保存
     if (targetMessage && targetMessage.versions) {
-        // 刷新/重发：添加新版本（携带 tool_calls）
-        const newVersion = createVersion(aiContent, reasoningContent, currentResponseId, currentAnnotations, resendUserId, targetMessage.tool_calls);
+        // 刷新/重发：添加新版本（tool_calls 从 toolCallsBuffer 取，即新响应里的）
+        const newToolCalls = (typeof toolCallsBuffer !== 'undefined' && toolCallsBuffer.length > 0)
+            ? toolCallsBuffer : null;
+        const newVersion = createVersion(aiContent, reasoningContent, currentResponseId, currentAnnotations, resendUserId, newToolCalls);
 
         targetMessage.versions.push(newVersion);
         console.log('====== 保存新版本 ======');
@@ -12262,6 +12264,13 @@ async function handleResponse(systemPrompt = null, isRefresh = false, targetMess
         targetMessage.modelName = selectedModel;
         targetMessage.responseId = currentResponseId;  // 豆包 Session 缓存
         targetMessage.annotations = currentAnnotations; // 联网搜索引用来源
+        // 同步顶层 tool_calls 为当前版本的 tool_calls（避免残留旧版本的数据）
+        const currentVer = targetMessage.versions[targetMessage.currentVersionIndex];
+        if (currentVer && currentVer.tool_calls) {
+            targetMessage.tool_calls = currentVer.tool_calls;
+        } else {
+            delete targetMessage.tool_calls;
+        }
         // 消息没有被移除过，不需要 splice 回来
         resendUserId = null;
 
@@ -13493,13 +13502,21 @@ function cascadeDeleteMessages(startSearchIds, startIndex) {
     const toDelete = new Set();
     let searchSet = new Set(startSearchIds);
     
-    // 级联查找
+    // 级联查找：有版本的消息只看版本内的 prevId，无版本的消息看顶层 prevId
     while (searchSet.size > 0) {
         const nextIds = [];
         for (let i = startIndex; i < messages.length; i++) {
             if (toDelete.has(i)) continue;
             const msg = messages[i];
-            if (msg.prevId && searchSet.has(msg.prevId)) {
+            let matched = false;
+            if (msg.versions && msg.versions.length > 0) {
+                // 有版本：只看版本内的 prevId
+                matched = msg.versions.some(v => v.prevId && searchSet.has(v.prevId));
+            } else {
+                // 无版本：看顶层 prevId
+                matched = msg.prevId && searchSet.has(msg.prevId);
+            }
+            if (matched) {
                 toDelete.add(i);
                 if (msg.versions && msg.versions.length > 0) {
                     msg.versions.forEach(v => { if (v.id) nextIds.push(v.id); });
