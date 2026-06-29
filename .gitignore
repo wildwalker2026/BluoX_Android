@@ -54,3 +54,8 @@ vcs.xml
 .DS_Store
 Thumbs.db
 app/src/main/assets/www/models/minilm/model_quantized.onnx
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
