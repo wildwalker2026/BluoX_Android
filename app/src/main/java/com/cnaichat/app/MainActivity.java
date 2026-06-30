@@ -150,7 +150,7 @@ public class MainActivity extends Activity {
     private TermuxBridge termuxBridge;
 
     // APK 打包时的 Web 版本号（与 config.xml 保持一致）
-    private static final String ASSETS_WEB_VERSION = "1.3.12";
+    private static final String ASSETS_WEB_VERSION = "1.3.13";
 
     // 数据目录前缀配置（完整绝对路径，自动派生 Notes/ 和 Skills/ 子目录）
     private static final String DEFAULT_DATA_PREFIX = "/storage/emulated/0/Download/Bluox";
