@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
     <meta name="theme-color" content="#ffffff">
-    <meta name="description" content="小蓝AI盒子 - 隐私优先的多平台AI助手，支持通义千问、DeepSeek等主流大模型，所有数据本地存储">
+    <meta name="description" content="小蓝AI盒子 - 隐私优先的多平台AI助手，支持千问、DeepSeek等主流大模型，所有数据本地存储">
     <title>小蓝AI盒子 - 你的掌上AI工作平台</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --content-max-width: 680px;
+            --content-max-width: 720px;
             --spacing-large: 4rem;
             --font-size-body: 18px;
-            --line-height: 1.6;
+            --line-height: 1.75;
             --color-text: #1a1a1a;
             --color-bg: #ffffff;
         }
@@ -30,78 +30,80 @@
             -webkit-font-smoothing: antialiased;
             max-width: var(--content-max-width);
             margin: 0 auto;
-            padding: 2rem 2rem 4rem;
+            padding: 8rem 2rem 6rem;
             min-height: 100vh;
         }
         a { color: inherit; }
 
-        /* ========== NAV ========== */
         nav {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 4rem;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 50;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid #E5E5E5;
+        }
+        nav .nav-inner {
+            display: flex; align-items: center; justify-content: space-between;
+            max-width: var(--content-max-width);
+            margin: 0 auto;
+            padding: 1.25rem 2rem;
         }
         nav .brand {
-            font-weight: 600;
-            font-size: 1rem;
-            color: #1a1a1a;
-            text-decoration: none;
+            font-weight: 600; font-size: 1rem;
+            color: #1a1a1a; text-decoration: none;
             letter-spacing: -0.01em;
         }
-        nav .links {
-            display: flex;
-            gap: 2rem;
-        }
+        nav .links { display: flex; gap: 2rem; }
         nav .links a {
-            font-size: 0.9rem;
-            font-weight: 400;
-            color: #64748B;
-            text-decoration: none;
+            font-size: 0.9rem; font-weight: 400;
+            color: #64748B; text-decoration: none;
             transition: color 0.2s;
         }
         nav .links a:hover { color: #1a1a1a; }
 
-        /* ========== HERO ========== */
-        .hero { margin-bottom: 4rem; }
+        .hero { margin-bottom: 8rem; }
+
+        /* Flag wave: 3D perspective + rotateY ripple */
         .hero-logo {
             width: 150px; height: 150px;
-            margin: 0 auto 2.5rem;
+            margin: 0 auto 3.5rem;
             cursor: pointer;
-            overflow: visible;
+            perspective: 600px;
         }
-        .hero-logo svg { width: 100%; height: 100%; overflow: visible; }
-        .hero-logo .cell { animation: none; }
-        .hero-logo .cell.active {
-            animation: logoFlyOut 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards,
-                       logoFlyBack 0.6s 1.6s cubic-bezier(0.34,1.56,0.64,1) forwards;
+        .hero-logo svg {
+            width: 100%; height: 100%; display: block;
+            transform-origin: left center;
         }
-        @keyframes logoFlyOut {
-            0% { transform: translate(0,0) scale(1); opacity: 1; }
-            100% { transform: translate(var(--tx),var(--ty)) scale(var(--ts)); opacity: 0.3; }
+        .hero-logo.active svg {
+            animation: flagWave 1.2s ease-in-out;
         }
-        @keyframes logoFlyBack {
-            0% { transform: translate(var(--tx),var(--ty)) scale(var(--ts)); opacity: 0.3; }
-            100% { transform: translate(0,0) scale(1); opacity: 1; }
+        @keyframes flagWave {
+            0%   { transform: rotateY(0deg); }
+            25%  { transform: rotateY(25deg); }
+            50%  { transform: rotateY(-15deg); }
+            75%  { transform: rotateY(10deg); }
+            100% { transform: rotateY(0deg); }
         }
+
         .hero h1 {
             font-size: clamp(2.5rem, 6vw, 3.5rem);
             font-weight: 700;
             letter-spacing: -0.02em;
             line-height: 1.1;
-            margin-bottom: 1.5rem;
+            margin-bottom: 2rem;
             color: #1a1a1a;
         }
         .hero .sub {
             font-size: 1.25rem;
             color: #64748B;
             font-weight: 400;
-            margin-bottom: 3rem;
-            line-height: 1.5;
+            margin-bottom: 4rem;
+            line-height: 1.6;
             max-width: 540px;
         }
 
-        /* ========== ONE CTA ========== */
         .cta {
             display: inline-block;
             background: #171717;
@@ -126,32 +128,27 @@
         }
         .cta-secondary:hover { color: #1a1a1a; }
 
-        /* ========== SECTION ========== */
-        section { margin-bottom: 6rem; }
+        section { margin-bottom: 8rem; }
         section h2 {
             font-size: 1.5rem;
             font-weight: 600;
             letter-spacing: -0.01em;
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
             color: #1a1a1a;
         }
-        section p {
-            color: #404040;
-            margin-bottom: 1.5rem;
-        }
+        section p { color: #404040; margin-bottom: 2rem; }
 
-        /* ========== FEATURES - minimal list style ========== */
         .feature-list {
             list-style: none;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 2rem 3rem;
+            gap: 3rem 4rem;
         }
         @media (max-width: 520px) { .feature-list { grid-template-columns: 1fr; } }
         .feature-list li h3 {
             font-size: 1.05rem;
             font-weight: 600;
-            margin-bottom: 0.35rem;
+            margin-bottom: 0.5rem;
             color: #1a1a1a;
             letter-spacing: -0.01em;
         }
@@ -162,11 +159,9 @@
             line-height: 1.5;
         }
 
-        /* ========== CROSS-DEVICE ========== */
-
         .whatsnew {
             border-top: 1px solid #E5E5E5;
-            padding-top: 1.5rem;
+            padding-top: 2rem;
             font-size: 0.85rem;
             color: #64748B;
             line-height: 1.7;
@@ -185,10 +180,9 @@
             letter-spacing: 0.03em;
         }
 
-        /* ========== FOOTER ========== */
         footer {
-            margin-top: 8rem;
-            padding-top: 2rem;
+            margin-top: 10rem;
+            padding-top: 3rem;
             border-top: 1px solid #E5E5E5;
             font-size: 0.8rem;
             color: #64748B;
@@ -201,7 +195,6 @@
         footer a:hover { color: #1a1a1a; }
         footer .social { display: flex; gap: 1.5rem; }
 
-        /* ========== MODAL ========== */
         .modal-overlay {
             position: fixed; inset: 0;
             background: rgba(0,0,0,0.3);
@@ -239,7 +232,6 @@
         .modal-hint.success { color: #16A34A; }
         .modal-hint.error { color: #DC2626; }
 
-        /* ========== QR ========== */
         .qr-wrap { position: relative; display: inline; cursor: pointer; }
         .qr-pop {
             position: absolute; bottom: 120%; left: 50%;
@@ -258,72 +250,63 @@
 <body>
 
 <nav>
-    <a href="#" class="brand">小蓝AI盒子</a>
-    <div class="links">
-        <a href="#features">功能</a>
-        <a href="https://www.xiaolanbox.com/howtouse/" target="_blank">文档</a>
-        <a href="javascript:void(0)" id="navFeedback">反馈</a>
+    <div class="nav-inner">
+        <a href="#" class="brand">小蓝AI盒子</a>
+        <div class="links">
+            <a href="#features">功能</a>
+            <a href="https://www.xiaolanbox.com/howtouse/" target="_blank">文档</a>
+            <a href="javascript:void(0)" id="navFeedback">反馈</a>
+        </div>
     </div>
 </nav>
 
 <main>
-    <!-- ====== HERO ====== -->
     <div class="hero">
         <div class="hero-logo" id="heroLogo">
-            <svg id="logoAnimSvg" viewBox="0 0 512 512"></svg>
+            <svg viewBox="0 0 512 512">
+                <defs>
+                    <filter id="liquidDisplace0">
+                        <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" result="noise"/>
+                        <feDisplacementMap in="SourceGraphic" in2="noise" scale="0" xChannelSelector="R" yChannelSelector="G"/>
+                    </filter>
+                    <filter id="liquidDisplace1">
+                        <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="3" result="noise"/>
+                        <feDisplacementMap in="SourceGraphic" in2="noise" scale="12" xChannelSelector="R" yChannelSelector="G"/>
+                    </filter>
+                </defs>
+                <rect width="512" height="512" rx="100" fill="#171717"/>
+                <rect x="90" y="130" width="332" height="200" rx="30" fill="#FFFFFF"/>
+                <polygon points="150,326 200,326 130,400" fill="#FFFFFF"/>
+                <circle cx="200" cy="230" r="22" fill="#171717"/>
+                <circle cx="312" cy="230" r="22" fill="#171717"/>
+            </svg>
         </div>
         <h1>一台手机，<br>即可 VibeCoding</h1>
         <p class="sub">
             小蓝AI盒子（BluoX）是隐私优先的 AI 工作平台。
-            支持 DeepSeek、通义千问等主流大模型，所有数据本地存储。
+            支持 DeepSeek、千问等主流大模型，所有数据本地存储。
         </p>
-        <!-- ONE PRIMARY CTA ONLY -->
-        <a href="https://github.com/wildwalker2026/Bluox_android/releases/latest" class="cta" target="_blank">
-            下载 Android 版
-        </a>
-        <a href="https://github.com/wildwalker2026/Bluox_pc/releases/latest" class="cta-secondary" target="_blank">
-            也可下载 Windows 客户端「龙虾」 →
-        </a>
+        <a href="https://github.com/wildwalker2026/Bluox_android/releases/latest" class="cta" target="_blank">下载 Android 版</a>
+        <a href="https://github.com/wildwalker2026/Bluox_pc/releases/latest" class="cta-secondary" target="_blank">也可下载 Windows 客户端「龙虾」 →</a>
     </div>
 
-    <!-- ====== WHAT IT DOES ====== -->
     <section>
         <h2>它能做什么</h2>
         <p>AI 读写文件、编辑代码、搜索网页、执行终端命令——一台手机，完成你以前需要电脑才能做的事。</p>
     </section>
 
-    <!-- ====== FEATURES ====== -->
     <section id="features">
         <h2>核心特性</h2>
         <ul class="feature-list">
-            <li>
-                <h3>多平台聚合</h3>
-                <p>通义千问、DeepSeek、豆包、智谱清言，一个入口畅聊所有 AI。</p>
-            </li>
-            <li>
-                <h3>工具调用</h3>
-                <p>AI 自主读写文件、编辑代码、搜索网页，敏感操作弹卡片确认，全程透明。</p>
-            </li>
-            <li>
-                <h3>终端集成</h3>
-                <p>搭配 Termux，在手机上编译项目、运行脚本，真正实现移动端编码。</p>
-            </li>
-            <li>
-                <h3>隐私安全</h3>
-                <p>100% 本地存储，零数据上传。你的对话只属于你自己。</p>
-            </li>
-            <li>
-                <h3>本地知识库</h3>
-                <p>上传文档构建专属知识库，离线也能检索。</p>
-            </li>
-            <li>
-                <h3>跨设备协同</h3>
-                <p>手机发指令，电脑执行。远程操控，高效协作。</p>
-            </li>
+            <li><h3>多平台聚合</h3><p>千问、DeepSeek、豆包、智谱清言，一个入口畅聊所有 AI。</p></li>
+            <li><h3>工具调用</h3><p>AI 自主读写文件、编辑代码、搜索网页，敏感操作弹卡片确认，全程透明。</p></li>
+            <li><h3>终端集成</h3><p>搭配 Termux，在手机上编译项目、运行脚本，真正实现移动端编码。</p></li>
+            <li><h3>隐私安全</h3><p>100% 本地存储，零数据上传。你的对话只属于你自己。</p></li>
+            <li><h3>本地知识库</h3><p>上传文档构建专属知识库，离线也能检索。</p></li>
+            <li><h3>跨设备协同</h3><p>手机发指令，电脑执行。远程操控，高效协作。</p></li>
         </ul>
     </section>
 
-    <!-- ====== WHAT'S NEW ====== -->
     <section>
         <h2>最近更新</h2>
         <div class="whatsnew">
@@ -337,43 +320,30 @@
             <p style="margin-bottom:0.5rem;font-weight:500;color:#404040;">PC端 v0.1.5</p>
             <span class="tag">新增</span>截图功能（截图可固定在桌面上）<br>
             <span class="tag">修复</span>修复已知问题，提升稳定性<br><br>
-            更多详情见
-            <a href="https://github.com/wildwalker2026/Bluox_android/releases" target="_blank">GitHub Releases →</a>
+            更多详情见 <a href="https://github.com/wildwalker2026/Bluox_android/releases" target="_blank">GitHub Releases →</a>
         </div>
     </section>
 
-    <!-- ====== START ====== -->
     <section>
         <h2>开始使用</h2>
         <p>支持 Android 8.0 及以上，也提供 Windows 客户端。</p>
-        <a href="https://github.com/wildwalker2026/Bluox_android/releases/latest" class="cta" target="_blank">
-            下载 Android 版
-        </a>
-        <a href="https://www.bilibili.com/video/BV1KDdPBcE1Z" class="cta-secondary" target="_blank">
-            B站教程：如何获取 API KEY →
-        </a>
+        <a href="https://github.com/wildwalker2026/Bluox_android/releases/latest" class="cta" target="_blank">下载 Android 版</a>
+        <a href="https://www.bilibili.com/video/BV1KDdPBcE1Z" class="cta-secondary" target="_blank">B站教程：如何获取 API KEY →</a>
     </section>
 </main>
 
 <footer>
-    <div>
-        <strong style="color:#1a1a1a;">小蓝AI盒子</strong>
-        &nbsp;© 2026 新蓝域（广州）科技有限责任公司
-    </div>
+    <div><strong style="color:#1a1a1a;">小蓝AI盒子</strong>&nbsp;© 2026 新蓝域（广州）科技有限责任公司</div>
     <div class="social">
         <a href="https://xiaolanbox.com/right/web_privacy.html" target="_blank">隐私政策</a>
         <a href="https://xiaolanbox.com/right/web_terms.html" target="_blank">服务条款</a>
         <a href="https://beian.miit.gov.cn/" target="_blank">粤ICP备2026039790号-2</a>
         <a href="https://www.xiaohongshu.com/user/profile/615d7a1c0000000002018733" target="_blank">小红书</a>
-        <span class="qr-wrap">
-            <span style="text-decoration:underline;text-underline-offset:3px;cursor:pointer;">抖音</span>
-            <span class="qr-pop douyin"><img src="抖音二维码.png" alt="抖音二维码"></span>
-        </span>
+        <span class="qr-wrap"><span style="text-decoration:underline;text-underline-offset:3px;cursor:pointer;">抖音</span><span class="qr-pop douyin"><img src="抖音二维码.png" alt="抖音二维码"></span></span>
         <span style="color:#64748B;">QQ群 284957094</span>
     </div>
 </footer>
 
-<!-- Feedback Modal -->
 <div class="modal-overlay" id="feedbackModal">
     <div class="modal-box">
         <button class="modal-close" id="feedbackClose">&times;</button>
@@ -391,53 +361,23 @@
 </div>
 
 <script>
-// === Logo grid animation ===
 (function(){
-    var LOGO=[{el:'rect',attrs:{width:512,height:512,rx:100},fill:'#171717'},{el:'rect',attrs:{x:90,y:130,width:332,height:200,rx:30},fill:'#FFFFFF'},{el:'polygon',attrs:{points:'150,326 200,326 130,400'},fill:'#FFFFFF'},{el:'circle',attrs:{cx:200,cy:230,r:22},fill:'#171717'},{el:'circle',attrs:{cx:312,cy:230,r:22},fill:'#171717'}];
-    var GRID=8,SIZE=512,CELL=SIZE/GRID,svgNS='http://www.w3.org/2000/svg';
-    var svg=document.getElementById('logoAnimSvg'),wrap=document.getElementById('heroLogo');
-    var defs=document.createElementNS(svgNS,'defs');svg.appendChild(defs);
-    var src=document.createElementNS(svgNS,'g');src.setAttribute('id','logoSrc');
-    LOGO.forEach(function(p){var e=document.createElementNS(svgNS,p.el);Object.keys(p.attrs).forEach(function(k){e.setAttribute(k,p.attrs[k])});e.setAttribute('fill',p.fill);src.appendChild(e)});
-    defs.appendChild(src);
-    var cells=[];
-    for(var r=0;r<GRID;r++)for(var c=0;c<GRID;c++){
-        var id='lc-'+r+'-'+c,cp=document.createElementNS(svgNS,'clipPath');cp.setAttribute('id',id);
-        var rect=document.createElementNS(svgNS,'rect');
-        rect.setAttribute('x',c*CELL);rect.setAttribute('y',r*CELL);rect.setAttribute('width',CELL);rect.setAttribute('height',CELL);
-        cp.appendChild(rect);defs.appendChild(cp);
-        var g=document.createElementNS(svgNS,'g');g.setAttribute('clip-path','url(#'+id+')');g.classList.add('cell');
-        var u=document.createElementNS(svgNS,'use');u.setAttribute('href','#logoSrc');g.appendChild(u);
-        svg.appendChild(g);cells.push(g);
-    }
-    function randCells(){cells.forEach(function(g){var a=Math.random()*Math.PI*2,d=60+Math.random()*240;g.style.setProperty('--tx',(Math.cos(a)*d)+'px');g.style.setProperty('--ty',(Math.sin(a)*d)+'px');g.style.setProperty('--ts',(0.2+Math.random()*0.6))})}
-    function trigger(){randCells();cells.forEach(function(c){c.classList.remove('active')});void svg.offsetWidth;cells.forEach(function(c,i){setTimeout(function(){c.classList.add('active')},i*8)})}
-    wrap.addEventListener('click',trigger);setTimeout(trigger,600);
+    var logo=document.getElementById('heroLogo');
+    logo.addEventListener('click',function(){
+        logo.classList.remove('active');
+        void logo.offsetWidth;
+        logo.classList.add('active');
+    });
+    setTimeout(function(){logo.click()},600);
 })();
 
-// === Feedback modal ===
 (function(){
-    var m=document.getElementById('feedbackModal'),
-        f=document.getElementById('feedbackForm'),
-        h=document.getElementById('feedbackHint'),
-        c=document.getElementById('feedbackClose'),
-        n=document.getElementById('navFeedback');
-    n.addEventListener('click',function(e){e.preventDefault();h.textContent='';h.className='modal-hint';
-        fetch('/api/feedback/count').then(function(r){return r.json()}).then(function(d){
-            if(d.count>=d.max){h.textContent='今日反馈次数已达上限（'+d.max+'次/天）';h.className='modal-hint error'}
-            m.classList.add('active')
-        }).catch(function(){m.classList.add('active')})});
+    var m=document.getElementById('feedbackModal'),f=document.getElementById('feedbackForm'),h=document.getElementById('feedbackHint'),c=document.getElementById('feedbackClose'),n=document.getElementById('navFeedback');
+    n.addEventListener('click',function(e){e.preventDefault();h.textContent='';h.className='modal-hint';fetch('/api/feedback/count').then(function(r){return r.json()}).then(function(d){if(d.count>=d.max){h.textContent='今日反馈次数已达上限（'+d.max+'次/天）';h.className='modal-hint error'}m.classList.add('active')}).catch(function(){m.classList.add('active')})});
     c.addEventListener('click',function(){m.classList.remove('active')});
     if(location.hash==='#feedback')n.click();
     m.addEventListener('click',function(e){if(e.target===m)m.classList.remove('active')});
-    f.addEventListener('submit',function(e){e.preventDefault();
-        var a=document.getElementById('fbContact').value.trim(),
-            b=document.getElementById('fbContent').value.trim();
-        if(!a||!b){h.textContent='请填写完整信息';h.className='modal-hint error';return}
-        fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contact:a,content:b})})
-            .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'提交失败');return d})})
-            .then(function(){h.textContent='反馈已提交，感谢你的建议';h.className='modal-hint success';f.reset()})
-            .catch(function(err){h.textContent=err.message;h.className='modal-hint error'})});
+    f.addEventListener('submit',function(e){e.preventDefault();var a=document.getElementById('fbContact').value.trim(),b=document.getElementById('fbContent').value.trim();if(!a||!b){h.textContent='请填写完整信息';h.className='modal-hint error';return}fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contact:a,content:b})}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'提交失败');return d})}).then(function(){h.textContent='反馈已提交，感谢你的建议';h.className='modal-hint success';f.reset()}).catch(function(err){h.textContent=err.message;h.className='modal-hint error'})});
 })();
 </script>
 </body>

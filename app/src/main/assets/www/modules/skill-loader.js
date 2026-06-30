@@ -559,7 +559,7 @@ function getSkillToolDefinitions() {
                     type: 'function',
                     function: {
                         name: skill.name,
-                        description: enhancedDesc + '\n\n用法：直接传入要执行的命令行参数（不包含脚本路径，只传子命令和选项）。\n例如：search "量子计算" --max_results 5',
+                        description: enhancedDesc + '\n\n用法：直接传入要执行的命令行参数（不包含脚本路径，只传子命令和选项）。',
                         parameters: {
                             type: 'object',
                             properties: {
