@@ -58,4 +58,4 @@ app/src/main/assets/www/models/minilm/model_quantized.onnx
 # Python
 __pycache__/
 *.pyc
-*.pyo
+*.pyofonts/
