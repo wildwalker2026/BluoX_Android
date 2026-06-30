@@ -2456,6 +2456,8 @@ async function executeToolCall(tc) {
         'git var', 'git help'
     ];
     // 危险关键字：包含这些关键字的命令一律需要确认（即使在白名单前缀中）
+    // 注意：带尾空格的关键字（如 'rm '）用于匹配 'rm file' 形式；
+    // 不带空格的关键字（如 'kill'）用单词边界正则匹配，避免误伤路径中的子串（如 Skills）
     const DANGEROUS_KEYWORDS = [
         'rm ', 'rmdir', 'mv ', 'cp ', 'mkdir', 'chmod', 'chown', 'chgrp',
         'kill', 'killall', 'nohup',
@@ -2468,6 +2470,8 @@ async function executeToolCall(tc) {
         // 白名单命令的危险参数
         'sed -i', 'find -delete', 'find -exec', 'find -ok'
     ];
+    // 需要单词边界匹配的关键字（不带尾空格，避免路径子串误伤）
+    const WORD_BOUNDARY_DANGERS = ['kill', 'killall', 'nohup', 'mkfs', 'mount', 'umount', 'reboot', 'shutdown', 'rmdir', 'mkdir', 'chmod', 'chown', 'chgrp', 'setprop', 'setenforce'];
 
     // 绝对禁止：任何情况下都不允许执行
     // 注意：用正则精确匹配根目录，避免误伤子目录（如 rm -rf /sdcard/Download/xxx 是合法的）
@@ -2521,7 +2525,16 @@ async function executeToolCall(tc) {
 
         // 检查危险关键字
         for (const danger of DANGEROUS_KEYWORDS) {
-            if (cmd.includes(danger)) return 'confirm';
+            // 带空格的关键字用 includes（如 'rm '、'dd '）
+            if (danger.endsWith(' ')) {
+                if (cmd.includes(danger)) return 'confirm';
+            } else if (WORD_BOUNDARY_DANGERS.includes(danger)) {
+                // 单词边界匹配（如 kill），避免路径子串误伤（如 Skills）
+                const re = new RegExp('\\b' + danger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
+                if (re.test(cmd)) return 'confirm';
+            } else {
+                if (cmd.includes(danger)) return 'confirm';
+            }
         }
 
         // 检查白名单（单词匹配）
