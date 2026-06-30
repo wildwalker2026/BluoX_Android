@@ -3658,7 +3658,7 @@ function renderAllAgentTopics() {
         const topics = agentTopics[agent.id];
         if (!topics) return;
         topics.forEach(topic => {
-            if (topic.starred && topic.hasContent) {
+            if (topic.starred) {
                 starredEntries.push({ agent, topic });
             }
         });
@@ -3801,9 +3801,10 @@ function renderAllAgentTopics() {
             })();
             return timeB - timeA;
         });
-        const topicsWithContent = sortedTopics.filter(topic => topic.hasContent === true);
+        // 显示所有话题（包括空话题）
+        const topicsWithContent = sortedTopics;
 
-        // 如果该智能体没有有内容的话题，跳过渲染（电脑端智能体除外，始终显示）
+        // 如果该智能体没有任何话题，跳过渲染（电脑端智能体除外，始终显示）
         if (topicsWithContent.length === 0 && agent.id !== PC_AGENT_ID) {
             return;
         }
@@ -5038,7 +5039,8 @@ function toggleAgentTopics(agentId) {
         const timeB = _messageLastTimeCache[keyB] || b.createTime || 0;
         return timeB - timeA;
     });
-    const topicsWithContent = sortedTopics.filter(topic => topic.hasContent === true);
+    // 显示所有话题（包括空话题）
+    const topicsWithContent = sortedTopics;
 
     // 构建面板内容 HTML
     let contentHtml = '';
